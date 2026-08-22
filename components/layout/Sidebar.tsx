@@ -13,6 +13,7 @@ import {
   Play,
   Square,
   Shield,
+  ShieldCheck,
   Sparkles,
   MapPin,
   Laptop,
