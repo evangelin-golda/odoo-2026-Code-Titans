@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, phone, department, jobPosition, workMode, password } = body;
+    const { name, email, phone, department, jobPosition, workMode, role, password } = body;
 
     if (!name || !email) {
       return NextResponse.json(
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Securely register strictly as Employee
+    // Securely register employee / HR profile
     const newEmployee = await registerNewEmployee({
       name,
       email,
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       department,
       jobPosition,
       workMode,
+      role,
       password,
     });
 

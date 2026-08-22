@@ -8,6 +8,7 @@ import {
   PersonalReportSummary,
   WorkMode,
   LeaveType,
+  UserRole,
 } from '@/types/hrms';
 import { sql, isNeonConfigured, ensureNeonSchema } from './neon';
 
@@ -612,6 +613,7 @@ export async function registerNewEmployee(data: {
   jobPosition?: string;
   workMode?: WorkMode;
   workLocation?: string;
+  role?: UserRole;
   password?: string;
 }): Promise<EmployeeProfile> {
   const existing = await getEmployeeByEmail(data.email);
@@ -626,6 +628,7 @@ export async function registerNewEmployee(data: {
   const department = data.department || 'Engineering';
   const jobPosition = data.jobPosition || 'Associate Engineer';
   const workLocation = data.workLocation || (workMode === 'remote' ? 'Remote (US)' : 'San Francisco HQ');
+  const role: UserRole = data.role || (department.toLowerCase().includes('hr') || data.email.toLowerCase().includes('hr') || data.email.toLowerCase().includes('admin') ? 'hr' : 'employee');
 
   const newProfile: EmployeeProfile = {
     id: newUserId,
@@ -649,7 +652,7 @@ export async function registerNewEmployee(data: {
     employmentType: 'Full-time',
     workLocation,
     workMode,
-    role: 'employee',
+    role,
     salary: {
       currency: 'USD',
       baseAnnual: 120000,

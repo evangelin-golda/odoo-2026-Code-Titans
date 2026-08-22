@@ -26,7 +26,7 @@ interface EmployeeContextType {
   todayAttendance: AttendanceRecord | null;
   unreadCount: number;
   login: (credentials: { email?: string; employeeId?: string; identifier?: string; password?: string }) => Promise<{ success: boolean; error?: string }>;
-  register: (data: { name: string; email: string; phone?: string; department?: string; jobPosition?: string; workMode?: WorkMode; password?: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { name: string; email: string; phone?: string; department?: string; jobPosition?: string; workMode?: WorkMode; role?: import('@/types/hrms').UserRole; password?: string }) => Promise<{ success: boolean; error?: string }>;
   loginEmployee: (empId: string) => Promise<void>;
   switchDemoUser: (empId: string) => Promise<void>;
   logout: () => void;
@@ -197,6 +197,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
     department?: string;
     jobPosition?: string;
     workMode?: WorkMode;
+    role?: import('@/types/hrms').UserRole;
     password?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
@@ -212,6 +213,18 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
         if (typeof window !== 'undefined') {
           localStorage.setItem('dayflow_emp_id', resData.employee.employeeId);
         }
+
+        const isHR = resData.employee.role === 'hr' || resData.employee.role === 'admin';
+        if (isHR) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('dayflow_admin_verified', 'true');
+            sessionStorage.setItem('dayflow_admin_email', resData.employee.email);
+          }
+          setActiveView('admin');
+        } else {
+          setActiveView('dashboard');
+        }
+
         showToast(`Welcome to Dayflow! Your Employee ID is ${resData.employee.employeeId}`, 'success');
         setOpenAuthModal(false);
         return { success: true };
