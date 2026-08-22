@@ -76,6 +76,10 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
   const [openAdminAuthModal, setOpenAdminAuthModal] = useState(false);
 
   const enterAdminMode = useCallback(() => {
+    if (employee?.role === 'hr' || employee?.role === 'admin' || employee?.email === 'bharani.flow@gmail.com') {
+      setActiveView('admin');
+      return;
+    }
     if (typeof window !== 'undefined') {
       const isVerified = sessionStorage.getItem('dayflow_admin_verified') === 'true';
       if (isVerified) {
@@ -84,7 +88,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
       }
     }
     setOpenAdminAuthModal(true);
-  }, []);
+  }, [employee]);
 
   // Fetch initial employee profile (Defaults to Alex Rivera EMP-1001)
   const fetchEmployee = useCallback(async (empId: string = 'EMP-1001') => {
