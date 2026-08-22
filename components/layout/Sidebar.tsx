@@ -8,7 +8,6 @@ import {
   Clock,
   CalendarDays,
   CreditCard,
-  Bell,
   BarChart3,
   BookOpen,
   Play,
@@ -17,6 +16,8 @@ import {
   Sparkles,
   MapPin,
   Laptop,
+  LogOut,
+  KeyRound,
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -32,11 +33,13 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
     employee,
     activeView,
     setActiveView,
-    unreadCount,
     todayAttendance,
     handleCheckIn,
     handleCheckOut,
     setOpenApplyLeaveModal,
+    setOpenAuthModal,
+    enterAdminMode,
+    logout,
   } = useEmployee();
 
   // Real-time elapsed punch timer
@@ -82,12 +85,6 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
     { id: 'attendance', label: 'Attendance Log', icon: Clock },
     { id: 'leave', label: 'Leave & Time Off', icon: CalendarDays },
     { id: 'salary', label: 'Salary & Payslips', icon: CreditCard },
-    {
-      id: 'notifications',
-      label: 'Notifications',
-      icon: Bell,
-      badge: unreadCount > 0 ? unreadCount : undefined,
-    },
     { id: 'reports', label: 'Personal Analytics', icon: BarChart3 },
     { id: 'assistant', label: 'HR Handbook & FAQ', icon: BookOpen },
   ];
@@ -180,6 +177,44 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
               </button>
             );
           })}
+
+          {/* Privileged Management Section */}
+          <div className="pt-3">
+            <div className="px-3 pb-2 text-[10px] font-bold text-purple-700 uppercase tracking-wider flex items-center justify-between">
+              <span>HR & Administration</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 font-extrabold">Privileged</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                enterAdminMode();
+                if (onCloseMobile) onCloseMobile();
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer ${
+                activeView === 'admin'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-purple-900 bg-purple-50/70 hover:bg-purple-100/90 border border-purple-200/70'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <ShieldCheck
+                  className={`w-4 h-4 transition-colors ${
+                    activeView === 'admin' ? 'text-white' : 'text-purple-600'
+                  }`}
+                />
+                <span>HR / Admin Portal</span>
+              </div>
+              <span
+                className={`px-1.5 py-0.5 text-[10px] font-bold rounded-md ${
+                  activeView === 'admin'
+                    ? 'bg-purple-700 text-white'
+                    : 'bg-purple-200 text-purple-900'
+                }`}
+              >
+                🔒 Protected
+              </span>
+            </button>
+          </div>
         </nav>
       </div>
 
@@ -243,10 +278,23 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
             setOpenApplyLeaveModal(true);
             if (onCloseMobile) onCloseMobile();
           }}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors shadow-xs"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors shadow-xs cursor-pointer"
         >
           <CalendarDays className="w-3.5 h-3.5 text-sky-600" />
           Apply for Time Off
+        </button>
+
+        {/* Sign Out Button */}
+        <button
+          type="button"
+          onClick={() => {
+            logout();
+            if (onCloseMobile) onCloseMobile();
+          }}
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-100 hover:border-rose-200 transition-colors cursor-pointer"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          Sign Out
         </button>
       </div>
     </aside>

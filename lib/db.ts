@@ -9,8 +9,9 @@ import {
   WorkMode,
   LeaveType,
 } from '@/types/hrms';
+import { sql, isNeonConfigured, ensureNeonSchema } from './neon';
 
-// Global in-memory storage simulating Odoo HR PostgreSQL backend
+// Global in-memory storage fallback simulating Odoo HR PostgreSQL backend
 interface DBStore {
   employees: Map<string, EmployeeProfile>;
   attendance: Map<string, AttendanceRecord[]>;
@@ -199,20 +200,18 @@ const generateSeedAttendance = (empId: string): AttendanceRecord[] => {
   const currentMonth = now.getMonth();
   const todayDate = now.getDate();
 
-  // Create attendance for recent 20 weekdays
   let dayCounter = 1;
   while (dayCounter <= todayDate) {
     const d = new Date(currentYear, currentMonth, dayCounter);
     const dayOfWeek = d.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Weekdays only
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
       const dateStr = d.toISOString().split('T')[0];
       const isToday = dayCounter === todayDate;
-      
-      // On some days, mark as remote or on_leave or slightly late
+
       let status: AttendanceRecord['status'] = 'present';
       let checkIn = '08:58:30';
       let checkOut: string | undefined = '17:34:10';
-      let duration = 515; // 8h 35m
+      let duration = 515;
       let isOnTime = true;
       let workMode: WorkMode = dayCounter % 3 === 0 ? 'remote' : 'office';
 
@@ -237,10 +236,9 @@ const generateSeedAttendance = (empId: string): AttendanceRecord[] => {
       }
 
       if (isToday) {
-        // Today is active! Checked in at 09:00 AM
         checkIn = '09:04:12';
         checkOut = undefined;
-        duration = 240; // in progress
+        duration = 240;
         status = 'present';
         isOnTime = true;
         workMode = 'office';
@@ -262,7 +260,6 @@ const generateSeedAttendance = (empId: string): AttendanceRecord[] => {
     dayCounter++;
   }
 
-  // Reverse so newest is first
   return records.reverse();
 };
 
@@ -381,32 +378,6 @@ const initialPayslips: Payslip[] = [
     daysPresent: 21,
     paidLeaves: 1,
   },
-  {
-    id: 'ps-2026-05',
-    employeeId: 'EMP-1001',
-    month: 'May 2026',
-    year: 2026,
-    periodStart: '2026-05-01',
-    periodEnd: '2026-05-31',
-    payDate: '2026-05-31',
-    grossPay: 18720,
-    totalDeductions: 2000,
-    netPay: 16720,
-    currency: 'USD',
-    status: 'Paid',
-    breakdown: {
-      basic: 12083,
-      hra: 3625,
-      specialAllowance: 1812,
-      bonus: 1200,
-      providentFund: 1450,
-      taxDeducted: 200,
-      healthInsurance: 350,
-    },
-    workingDays: 21,
-    daysPresent: 21,
-    paidLeaves: 0,
-  },
 ];
 
 // Seed Notifications
@@ -441,15 +412,6 @@ const initialNotifications: NotificationItem[] = [
     isRead: true,
     actionUrl: '/attendance',
   },
-  {
-    id: 'notif-4',
-    employeeId: 'EMP-1001',
-    title: 'Company Townhall & Q3 Roadmap',
-    message: 'All-hands Dayflow Quarterly Sync is scheduled for Friday at 3:00 PM PST in Meeting Room A & Zoom.',
-    category: 'general',
-    timestamp: '1 week ago',
-    isRead: true,
-  },
 ];
 
 // Declare global singleton storage to persist across hot reloads in dev server
@@ -470,7 +432,6 @@ function initDB(): DBStore {
     payslips: new Map(),
   };
 
-  // Populate initial records
   for (const emp of initialEmployees) {
     store.employees.set(emp.employeeId, emp);
     store.attendance.set(emp.employeeId, generateSeedAttendance(emp.employeeId));
@@ -484,7 +445,6 @@ function initDB(): DBStore {
     );
   }
 
-  // Set leaves for EMP-1001
   store.leaves.set('EMP-1001', [...initialLeaves]);
   store.leaves.set('EMP-1002', []);
   store.leaves.set('EMP-1003', []);
@@ -495,13 +455,147 @@ function initDB(): DBStore {
 
 export const db = initDB();
 
-// --- EMPLOYEE ACCESS AND OPERATIONS (Strictly Sandboxed by employeeId) ---
+// --- HELPER ROW MAPPERS FOR NEON POSTGRESQL ---
 
-export function getEmployeeByEmployeeId(employeeId: string): EmployeeProfile | null {
+function safeJsonParse<T>(val: any, fallback: T): T {
+  if (!val) return fallback;
+  if (typeof val === 'object') return val as T;
+  try {
+    return JSON.parse(val) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function mapEmployeeRow(row: any): EmployeeProfile {
+  if (!row) return null as any;
+  return {
+    id: String(row.id || ''),
+    employeeId: String(row.employee_id || row.employeeId || ''),
+    name: String(row.name || ''),
+    email: String(row.email || ''),
+    phone: String(row.phone || ''),
+    address: String(row.address || ''),
+    avatarUrl: String(row.avatar_url || row.avatarUrl || ''),
+    bio: String(row.bio || ''),
+    emergencyContact: safeJsonParse(row.emergency_contact || row.emergencyContact, { name: '', relationship: '', phone: '' }),
+    department: String(row.department || ''),
+    jobPosition: String(row.job_position || row.jobPosition || ''),
+    managerName: String(row.manager_name || row.managerName || ''),
+    managerEmail: String(row.manager_email || row.managerEmail || ''),
+    joiningDate: String(row.joining_date || row.joiningDate || ''),
+    employmentType: (row.employment_type || row.employmentType || 'Full-time') as any,
+    workLocation: String(row.work_location || row.workLocation || ''),
+    workMode: (row.work_mode || row.workMode || 'hybrid') as any,
+    role: (row.role || 'employee') as any,
+    salary: safeJsonParse(row.salary, {} as any),
+    documents: safeJsonParse(row.documents, []),
+  };
+}
+
+function mapAttendanceRow(row: any): AttendanceRecord {
+  if (!row) return null as any;
+  return {
+    id: String(row.id || `att-${row.employee_id || row.employeeId}-${row.date || Date.now()}`),
+    employeeId: String(row.employee_id || row.employeeId || ''),
+    date: String(row.date || ''),
+    checkIn: String(row.check_in || row.checkIn || '-'),
+    checkOut: (row.check_out || row.checkOut) ? String(row.check_out || row.checkOut) : undefined,
+    durationMinutes: Number(row.duration_minutes || row.durationMinutes) || 0,
+    status: (row.status || 'present') as any,
+    workMode: (row.work_mode || row.workMode || 'office') as any,
+    notes: row.notes ? String(row.notes) : undefined,
+    isOnTime: row.is_on_time !== undefined ? Boolean(row.is_on_time) : (row.isOnTime !== undefined ? Boolean(row.isOnTime) : true),
+  };
+}
+
+function mapLeaveRow(row: any): LeaveRequest {
+  if (!row) return null as any;
+  return {
+    id: String(row.id || ''),
+    employeeId: String(row.employee_id || row.employeeId || ''),
+    employeeName: String(row.employee_name || row.employeeName || ''),
+    leaveType: (row.leave_type || row.leaveType || 'casual') as any,
+    startDate: String(row.start_date || row.startDate || ''),
+    endDate: String(row.end_date || row.endDate || ''),
+    daysCount: Number(row.days_count || row.daysCount) || 1,
+    isHalfDay: Boolean(row.is_half_day ?? row.isHalfDay ?? false),
+    halfDayPeriod: (row.half_day_period || row.halfDayPeriod) as any,
+    reason: String(row.reason || ''),
+    status: (row.status || 'pending') as any,
+    appliedDate: String(row.applied_date || row.appliedDate || ''),
+    approvedBy: (row.approved_by || row.approvedBy) ? String(row.approved_by || row.approvedBy) : undefined,
+    approvalDate: (row.approval_date || row.approvalDate) ? String(row.approval_date || row.approvalDate) : undefined,
+    adminComments: (row.admin_comments || row.adminComments) ? String(row.admin_comments || row.adminComments) : undefined,
+    emergencyContactDuringLeave: (row.emergency_contact || row.emergencyContactDuringLeave) ? String(row.emergency_contact || row.emergencyContactDuringLeave) : undefined,
+  };
+}
+
+function mapPayslipRow(row: any): Payslip {
+  if (!row) return null as any;
+  return {
+    id: String(row.id || ''),
+    employeeId: String(row.employee_id || row.employeeId || ''),
+    month: String(row.month || ''),
+    year: Number(row.year) || new Date().getFullYear(),
+    periodStart: String(row.period_start || row.periodStart || ''),
+    periodEnd: String(row.period_end || row.periodEnd || ''),
+    payDate: String(row.pay_date || row.payDate || ''),
+    grossPay: Number(row.gross_pay || row.grossPay) || 0,
+    totalDeductions: Number(row.total_deductions || row.totalDeductions) || 0,
+    netPay: Number(row.net_pay || row.netPay) || 0,
+    currency: String(row.currency || 'USD'),
+    status: (row.status || 'Paid') as any,
+    breakdown: safeJsonParse(row.breakdown, {} as any),
+    workingDays: Number(row.working_days || row.workingDays) || 22,
+    daysPresent: Number(row.days_present || row.daysPresent) || 22,
+    paidLeaves: Number(row.paid_leaves || row.paidLeaves) || 0,
+  };
+}
+
+function mapNotificationRow(row: any): NotificationItem {
+  if (!row) return null as any;
+  return {
+    id: String(row.id || ''),
+    employeeId: String(row.employee_id || row.employeeId || ''),
+    title: String(row.title || ''),
+    message: String(row.message || ''),
+    category: (row.category || 'general') as any,
+    timestamp: String(row.timestamp || ''),
+    isRead: Boolean(row.is_read ?? row.isRead ?? false),
+    actionUrl: (row.action_url || row.actionUrl) ? String(row.action_url || row.actionUrl) : undefined,
+  };
+}
+
+// --- EMPLOYEE ACCESS AND OPERATIONS ---
+
+export async function getEmployeeByEmployeeId(employeeId: string): Promise<EmployeeProfile | null> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM employees WHERE employee_id = ${employeeId} LIMIT 1;`;
+      if (rows && rows.length > 0 && rows[0]) {
+        return mapEmployeeRow(rows[0]);
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
   return db.employees.get(employeeId) || null;
 }
 
-export function getEmployeeByEmail(email: string): EmployeeProfile | null {
+export async function getEmployeeByEmail(email: string): Promise<EmployeeProfile | null> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM employees WHERE LOWER(email) = LOWER(${email.trim()}) LIMIT 1;`;
+      if (rows && rows.length > 0 && rows[0]) {
+        return mapEmployeeRow(rows[0]);
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
   for (const emp of db.employees.values()) {
     if (emp.email.toLowerCase() === email.toLowerCase()) {
       return emp;
@@ -510,47 +604,52 @@ export function getEmployeeByEmail(email: string): EmployeeProfile | null {
   return null;
 }
 
-export function registerNewEmployee(data: {
+export async function registerNewEmployee(data: {
   name: string;
   email: string;
   phone?: string;
   department?: string;
   jobPosition?: string;
-}): EmployeeProfile {
-  // Validate email uniqueness
-  const existing = getEmployeeByEmail(data.email);
+  workMode?: WorkMode;
+  workLocation?: string;
+  password?: string;
+}): Promise<EmployeeProfile> {
+  const existing = await getEmployeeByEmail(data.email);
   if (existing) {
     throw new Error('An account with this email address already exists.');
   }
 
-  // Generate next Employee ID (EMP-1004, etc.)
-  const nextNumber = 1000 + db.employees.size + 1;
+  const nextNumber = 1000 + (db.employees.size + 1);
   const newEmpId = `EMP-${nextNumber}`;
-  const newUserId = `usr-${100 + db.employees.size + 1}`;
+  const newUserId = `usr-${100 + (db.employees.size + 1)}`;
+  const workMode: WorkMode = data.workMode || 'hybrid';
+  const department = data.department || 'Engineering';
+  const jobPosition = data.jobPosition || 'Associate Engineer';
+  const workLocation = data.workLocation || (workMode === 'remote' ? 'Remote (US)' : 'San Francisco HQ');
 
   const newProfile: EmployeeProfile = {
     id: newUserId,
     employeeId: newEmpId,
     name: data.name.trim(),
     email: data.email.trim().toLowerCase(),
-    phone: data.phone || '+1 (555) 000-0000',
+    phone: data.phone?.trim() || '+1 (555) 000-0000',
     address: 'Address pending verification',
     avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(data.name)}`,
-    bio: 'Employee at Dayflow HRMS.',
+    bio: `${jobPosition} in ${department} at Dayflow HRMS.`,
     emergencyContact: {
       name: 'Primary Contact',
       relationship: 'Family',
       phone: '+1 (555) 000-0000',
     },
-    department: data.department || 'Engineering',
-    jobPosition: data.jobPosition || 'Associate Engineer',
+    department,
+    jobPosition,
     managerName: 'David Sterling (VP of Engineering)',
     managerEmail: 'david.sterling@dayflow.internal',
     joiningDate: new Date().toISOString().split('T')[0],
     employmentType: 'Full-time',
-    workLocation: 'San Francisco HQ & Remote',
-    workMode: 'hybrid',
-    role: 'employee', // Strictly force employee role, prevents privilege escalation!
+    workLocation,
+    workMode,
+    role: 'employee',
     salary: {
       currency: 'USD',
       baseAnnual: 120000,
@@ -578,37 +677,51 @@ export function registerNewEmployee(data: {
     ],
   };
 
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`
+        INSERT INTO employees (
+          id, employee_id, name, email, phone, address, avatar_url, bio, emergency_contact,
+          department, job_position, manager_name, manager_email, joining_date, employment_type,
+          work_location, work_mode, role, salary, documents
+        ) VALUES (
+          ${newProfile.id}, ${newProfile.employeeId}, ${newProfile.name}, ${newProfile.email},
+          ${newProfile.phone}, ${newProfile.address}, ${newProfile.avatarUrl}, ${newProfile.bio},
+          ${JSON.stringify(newProfile.emergencyContact)}, ${newProfile.department}, ${newProfile.jobPosition},
+          ${newProfile.managerName}, ${newProfile.managerEmail}, ${newProfile.joiningDate}, ${newProfile.employmentType},
+          ${newProfile.workLocation}, ${newProfile.workMode}, ${newProfile.role}, ${JSON.stringify(newProfile.salary)},
+          ${JSON.stringify(newProfile.documents)}
+        );
+      `;
+    } catch (err) {
+      console.warn('Neon insert error, saving locally:', err);
+    }
+  }
+
   db.employees.set(newEmpId, newProfile);
   db.attendance.set(newEmpId, generateSeedAttendance(newEmpId));
   db.leaves.set(newEmpId, []);
   db.payslips.set(newEmpId, []);
-  db.notifications.set(newEmpId, [
-    {
-      id: `notif-welcome-${Date.now()}`,
-      employeeId: newEmpId,
-      title: 'Welcome to Dayflow!',
-      message: `Welcome aboard, ${data.name}! Your employee workspace EMP ID is ${newEmpId}. Explore your dashboard to track attendance, manage time-off, and view your profile.`,
-      category: 'general',
-      timestamp: 'Just now',
-      isRead: false,
-      actionUrl: '/dashboard',
-    },
-  ]);
+
+  await addNotification(newEmpId, {
+    title: 'Welcome to Dayflow!',
+    message: `Welcome aboard, ${data.name}! Your employee workspace EMP ID is ${newEmpId}.`,
+    category: 'general',
+    actionUrl: '/dashboard',
+  });
 
   return newProfile;
 }
 
-// Strictly allow editing ONLY permitted fields: phone, address, emergencyContact, bio, avatarUrl
-export function updateEmployeeProfile(
+export async function updateEmployeeProfile(
   employeeId: string,
   updates: Partial<EmployeeProfile>
-): EmployeeProfile {
-  const emp = db.employees.get(employeeId);
+): Promise<EmployeeProfile> {
+  const emp = await getEmployeeByEmployeeId(employeeId);
   if (!emp) {
     throw new Error('Employee record not found.');
   }
 
-  // Security barrier: Whitelist only permitted fields
   if (updates.phone !== undefined) emp.phone = updates.phone.trim();
   if (updates.address !== undefined) emp.address = updates.address.trim();
   if (updates.bio !== undefined) emp.bio = updates.bio.trim();
@@ -623,52 +736,88 @@ export function updateEmployeeProfile(
     };
   }
 
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`
+        UPDATE employees
+        SET phone = ${emp.phone}, address = ${emp.address}, bio = ${emp.bio},
+            avatar_url = ${emp.avatarUrl}, emergency_contact = ${JSON.stringify(emp.emergencyContact)}
+        WHERE employee_id = ${employeeId};
+      `;
+    } catch (err) {
+      console.warn('Neon update error, saving locally:', err);
+    }
+  }
+
   db.employees.set(employeeId, { ...emp });
   return emp;
 }
 
 // --- ATTENDANCE SYSTEM ---
 
-export function getEmployeeAttendance(
+export async function getEmployeeAttendance(
   employeeId: string,
   filter?: { month?: string; status?: string }
-): AttendanceRecord[] {
+): Promise<AttendanceRecord[]> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      let rows;
+      if (filter?.status && filter.status !== 'all') {
+        rows = await sql`SELECT * FROM attendance WHERE employee_id = ${employeeId} AND status = ${filter.status} ORDER BY date DESC;`;
+      } else {
+        rows = await sql`SELECT * FROM attendance WHERE employee_id = ${employeeId} ORDER BY date DESC;`;
+      }
+      if (rows && rows.length > 0) {
+        return rows.map(mapAttendanceRow).filter(Boolean);
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
+
   const records = db.attendance.get(employeeId) || [];
   if (!filter) return records;
 
   return records.filter(rec => {
     let matches = true;
-    if (filter.month && !rec.date.startsWith(filter.month)) {
-      matches = false;
-    }
-    if (filter.status && filter.status !== 'all' && rec.status !== filter.status) {
-      matches = false;
-    }
+    if (filter.month && !rec.date.startsWith(filter.month)) matches = false;
+    if (filter.status && filter.status !== 'all' && rec.status !== filter.status) matches = false;
     return matches;
   });
 }
 
-export function getTodayAttendanceRecord(employeeId: string): AttendanceRecord | null {
-  const records = db.attendance.get(employeeId) || [];
+export async function getTodayAttendanceRecord(employeeId: string): Promise<AttendanceRecord | null> {
   const todayStr = new Date().toISOString().split('T')[0];
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM attendance WHERE employee_id = ${employeeId} AND date = ${todayStr} LIMIT 1;`;
+      if (rows && rows.length > 0 && rows[0]) {
+        return mapAttendanceRow(rows[0]);
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
+
+  const records = db.attendance.get(employeeId) || [];
   return records.find(r => r.date === todayStr) || null;
 }
 
-export function recordCheckIn(
+export async function recordCheckIn(
   employeeId: string,
   workMode: WorkMode = 'office',
   notes?: string
-): AttendanceRecord {
+): Promise<AttendanceRecord> {
   const records = db.attendance.get(employeeId) || [];
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
-  const timeStr = now.toTimeString().split(' ')[0]; // "09:15:20"
+  const timeStr = now.toTimeString().split(' ')[0];
 
-  const existingToday = records.find(r => r.date === todayStr);
-  if (existingToday) {
-    if (existingToday.checkIn && existingToday.checkIn !== '-') {
-      throw new Error('You have already checked in for today.');
-    }
+  const existingToday = await getTodayAttendanceRecord(employeeId);
+  if (existingToday && existingToday.checkIn && existingToday.checkIn !== '-') {
+    throw new Error('You have already checked in for today.');
   }
 
   const isLate = now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() > 30);
@@ -686,12 +835,22 @@ export function recordCheckIn(
     isOnTime: !isLate,
   };
 
-  // Replace or prepend
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`
+        INSERT INTO attendance (id, employee_id, date, check_in, duration_minutes, status, work_mode, notes, is_on_time)
+        VALUES (${newRecord.id}, ${newRecord.employeeId}, ${newRecord.date}, ${newRecord.checkIn}, 0, ${newRecord.status}, ${newRecord.workMode}, ${newRecord.notes}, ${newRecord.isOnTime})
+        ON CONFLICT (id) DO UPDATE SET check_in = ${newRecord.checkIn}, status = ${newRecord.status}, work_mode = ${newRecord.workMode};
+      `;
+    } catch (err) {
+      console.warn('Neon check-in error:', err);
+    }
+  }
+
   const updated = [newRecord, ...records.filter(r => r.date !== todayStr)];
   db.attendance.set(employeeId, updated);
 
-  // Add system notification
-  addNotification(employeeId, {
+  await addNotification(employeeId, {
     title: 'Check-in Recorded',
     message: `Checked in successfully at ${timeStr} (${workMode.toUpperCase()} mode). Have a productive workday!`,
     category: 'attendance',
@@ -700,23 +859,21 @@ export function recordCheckIn(
   return newRecord;
 }
 
-export function recordCheckOut(employeeId: string, notes?: string): AttendanceRecord {
+export async function recordCheckOut(employeeId: string, notes?: string): Promise<AttendanceRecord> {
   const records = db.attendance.get(employeeId) || [];
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const timeStr = now.toTimeString().split(' ')[0];
 
-  const todayIndex = records.findIndex(r => r.date === todayStr);
-  if (todayIndex === -1 || !records[todayIndex].checkIn || records[todayIndex].checkIn === '-') {
+  const todayRecord = await getTodayAttendanceRecord(employeeId);
+  if (!todayRecord || !todayRecord.checkIn || todayRecord.checkIn === '-') {
     throw new Error('You must check in before you can check out.');
   }
 
-  const todayRecord = records[todayIndex];
   if (todayRecord.checkOut && todayRecord.checkOut !== '-') {
     throw new Error('You have already checked out for today.');
   }
 
-  // Calculate duration in minutes
   const [inH, inM, inS] = todayRecord.checkIn.split(':').map(Number);
   const checkInDate = new Date();
   checkInDate.setHours(inH, inM, inS || 0, 0);
@@ -730,11 +887,26 @@ export function recordCheckOut(employeeId: string, notes?: string): AttendanceRe
     todayRecord.notes = todayRecord.notes ? `${todayRecord.notes} | ${notes}` : notes;
   }
 
-  records[todayIndex] = { ...todayRecord };
-  db.attendance.set(employeeId, records);
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`
+        UPDATE attendance
+        SET check_out = ${timeStr}, duration_minutes = ${durationMinutes}, notes = ${todayRecord.notes || ''}
+        WHERE id = ${todayRecord.id};
+      `;
+    } catch (err) {
+      console.warn('Neon check-out error:', err);
+    }
+  }
+
+  const todayIndex = records.findIndex(r => r.date === todayStr);
+  if (todayIndex !== -1) {
+    records[todayIndex] = { ...todayRecord };
+    db.attendance.set(employeeId, records);
+  }
 
   const hours = (durationMinutes / 60).toFixed(1);
-  addNotification(employeeId, {
+  await addNotification(employeeId, {
     title: 'Check-out Recorded',
     message: `Checked out at ${timeStr}. Total shift duration: ${hours} hours. Great work today!`,
     category: 'attendance',
@@ -745,10 +917,9 @@ export function recordCheckOut(employeeId: string, notes?: string): AttendanceRe
 
 // --- LEAVE MANAGEMENT ---
 
-export function getLeaveBalances(employeeId: string): LeaveBalance[] {
-  const leaves = db.leaves.get(employeeId) || [];
+export async function getLeaveBalances(employeeId: string): Promise<LeaveBalance[]> {
+  const leaves = await getEmployeeLeaves(employeeId);
 
-  // Totals allocated per year
   const totalAllocations: Record<LeaveType, { name: string; total: number; color: string }> = {
     annual: { name: 'Paid / Annual Leave', total: 18, color: '#0ea5e9' },
     sick: { name: 'Sick Leave', total: 10, color: '#10b981' },
@@ -758,7 +929,7 @@ export function getLeaveBalances(employeeId: string): LeaveBalance[] {
     maternity_paternity: { name: 'Parental Leave', total: 60, color: '#ec4899' },
   };
 
-  const balances: LeaveBalance[] = (Object.keys(totalAllocations) as LeaveType[]).map(type => {
+  return (Object.keys(totalAllocations) as LeaveType[]).map(type => {
     const alloc = totalAllocations[type];
     const userLeavesOfType = leaves.filter(l => l.leaveType === type);
 
@@ -782,15 +953,24 @@ export function getLeaveBalances(employeeId: string): LeaveBalance[] {
       color: alloc.color,
     };
   });
-
-  return balances;
 }
 
-export function getEmployeeLeaves(employeeId: string): LeaveRequest[] {
+export async function getEmployeeLeaves(employeeId: string): Promise<LeaveRequest[]> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM leaves WHERE employee_id = ${employeeId} ORDER BY applied_date DESC;`;
+      if (rows && rows.length > 0) {
+        return rows.map(mapLeaveRow).filter(Boolean);
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
   return db.leaves.get(employeeId) || [];
 }
 
-export function applyForLeave(
+export async function applyForLeave(
   employeeId: string,
   data: {
     leaveType: LeaveType;
@@ -801,8 +981,8 @@ export function applyForLeave(
     halfDayPeriod?: 'morning' | 'afternoon';
     emergencyContact?: string;
   }
-): LeaveRequest {
-  const emp = db.employees.get(employeeId);
+): Promise<LeaveRequest> {
+  const emp = await getEmployeeByEmployeeId(employeeId);
   if (!emp) throw new Error('Employee not found');
 
   const start = new Date(data.startDate);
@@ -816,7 +996,6 @@ export function applyForLeave(
     throw new Error('End date cannot be earlier than start date.');
   }
 
-  // Calculate working days (excluding weekends)
   let daysCount = 0;
   const cur = new Date(start);
   while (cur <= end) {
@@ -835,8 +1014,7 @@ export function applyForLeave(
     throw new Error('Selected date range contains no working days (weekends only).');
   }
 
-  // Check balance
-  const balances = getLeaveBalances(employeeId);
+  const balances = await getLeaveBalances(employeeId);
   const balance = balances.find(b => b.type === data.leaveType);
   if (balance && balance.available < daysCount && data.leaveType !== 'unpaid') {
     throw new Error(
@@ -844,8 +1022,7 @@ export function applyForLeave(
     );
   }
 
-  // Check overlapping requests
-  const existingLeaves = db.leaves.get(employeeId) || [];
+  const existingLeaves = await getEmployeeLeaves(employeeId);
   const hasOverlap = existingLeaves.some(l => {
     if (l.status === 'rejected' || l.status === 'cancelled') return false;
     const lStart = new Date(l.startDate);
@@ -873,9 +1050,27 @@ export function applyForLeave(
     emergencyContactDuringLeave: data.emergencyContact?.trim(),
   };
 
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`
+        INSERT INTO leaves (
+          id, employee_id, employee_name, leave_type, start_date, end_date, days_count,
+          is_half_day, half_day_period, reason, status, applied_date, emergency_contact
+        ) VALUES (
+          ${newRequest.id}, ${newRequest.employeeId}, ${newRequest.employeeName}, ${newRequest.leaveType},
+          ${newRequest.startDate}, ${newRequest.endDate}, ${newRequest.daysCount},
+          ${newRequest.isHalfDay || false}, ${newRequest.halfDayPeriod || null}, ${newRequest.reason},
+          ${newRequest.status}, ${newRequest.appliedDate}, ${newRequest.emergencyContactDuringLeave || null}
+        );
+      `;
+    } catch (err) {
+      console.warn('Neon leave insert error:', err);
+    }
+  }
+
   db.leaves.set(employeeId, [newRequest, ...existingLeaves]);
 
-  addNotification(employeeId, {
+  await addNotification(employeeId, {
     title: 'Leave Application Submitted',
     message: `Your ${data.leaveType.toUpperCase()} leave request for ${daysCount} day(s) (${data.startDate} to ${data.endDate}) was submitted for manager review.`,
     category: 'leave',
@@ -885,8 +1080,8 @@ export function applyForLeave(
   return newRequest;
 }
 
-export function cancelLeaveRequest(employeeId: string, leaveId: string): LeaveRequest {
-  const leaves = db.leaves.get(employeeId) || [];
+export async function cancelLeaveRequest(employeeId: string, leaveId: string): Promise<LeaveRequest> {
+  const leaves = await getEmployeeLeaves(employeeId);
   const index = leaves.findIndex(l => l.id === leaveId);
   if (index === -1) {
     throw new Error('Leave request not found.');
@@ -898,10 +1093,19 @@ export function cancelLeaveRequest(employeeId: string, leaveId: string): LeaveRe
   }
 
   target.status = 'cancelled';
+
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`UPDATE leaves SET status = 'cancelled' WHERE id = ${leaveId};`;
+    } catch (err) {
+      console.warn('Neon leave cancel error:', err);
+    }
+  }
+
   leaves[index] = { ...target };
   db.leaves.set(employeeId, leaves);
 
-  addNotification(employeeId, {
+  await addNotification(employeeId, {
     title: 'Leave Request Cancelled',
     message: `Your pending leave request (${target.startDate} to ${target.endDate}) has been cancelled.`,
     category: 'leave',
@@ -913,9 +1117,24 @@ export function cancelLeaveRequest(employeeId: string, leaveId: string): LeaveRe
 
 // --- SALARY & PAYSLIP (Read-Only) ---
 
-export function getSalaryDetails(employeeId: string) {
-  const emp = db.employees.get(employeeId);
+export async function getSalaryDetails(employeeId: string) {
+  const emp = await getEmployeeByEmployeeId(employeeId);
   if (!emp) throw new Error('Employee not found');
+
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM payslips WHERE employee_id = ${employeeId} ORDER BY period_start DESC;`;
+      if (rows && rows.length > 0) {
+        return {
+          salaryStructure: emp.salary,
+          payslips: rows.map(mapPayslipRow).filter(Boolean),
+        };
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
 
   const payslips = db.payslips.get(employeeId) || [];
   return {
@@ -924,18 +1143,48 @@ export function getSalaryDetails(employeeId: string) {
   };
 }
 
-export function getPayslipById(employeeId: string, payslipId: string): Payslip | null {
+export async function getPayslipById(employeeId: string, payslipId: string): Promise<Payslip | null> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM payslips WHERE employee_id = ${employeeId} AND id = ${payslipId} LIMIT 1;`;
+      if (rows && rows.length > 0 && rows[0]) {
+        return mapPayslipRow(rows[0]);
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
   const payslips = db.payslips.get(employeeId) || [];
   return payslips.find(p => p.id === payslipId) || null;
 }
 
 // --- NOTIFICATIONS ---
 
-export function getEmployeeNotifications(employeeId: string): NotificationItem[] {
+export async function getEmployeeNotifications(employeeId: string): Promise<NotificationItem[]> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM notifications WHERE employee_id = ${employeeId} ORDER BY created_at DESC;`;
+      if (rows && rows.length > 0) {
+        return rows.map(mapNotificationRow).filter(Boolean);
+      }
+    } catch {
+      // Fallback to in-memory store
+    }
+  }
   return db.notifications.get(employeeId) || [];
 }
 
-export function markNotificationRead(employeeId: string, notificationId: string): boolean {
+export async function markNotificationRead(employeeId: string, notificationId: string): Promise<boolean> {
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`UPDATE notifications SET is_read = true WHERE id = ${notificationId} AND employee_id = ${employeeId};`;
+    } catch (err) {
+      console.warn('Neon mark read error:', err);
+    }
+  }
+
   const notifs = db.notifications.get(employeeId) || [];
   const item = notifs.find(n => n.id === notificationId);
   if (item) {
@@ -946,7 +1195,15 @@ export function markNotificationRead(employeeId: string, notificationId: string)
   return false;
 }
 
-export function markAllNotificationsRead(employeeId: string): boolean {
+export async function markAllNotificationsRead(employeeId: string): Promise<boolean> {
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`UPDATE notifications SET is_read = true WHERE employee_id = ${employeeId};`;
+    } catch (err) {
+      console.warn('Neon mark all read error:', err);
+    }
+  }
+
   const notifs = db.notifications.get(employeeId) || [];
   for (const n of notifs) {
     n.isRead = true;
@@ -955,11 +1212,10 @@ export function markAllNotificationsRead(employeeId: string): boolean {
   return true;
 }
 
-export function addNotification(
+export async function addNotification(
   employeeId: string,
   notif: Omit<NotificationItem, 'id' | 'employeeId' | 'timestamp' | 'isRead'>
-): NotificationItem {
-  const notifs = db.notifications.get(employeeId) || [];
+): Promise<NotificationItem> {
   const newItem: NotificationItem = {
     id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     employeeId,
@@ -968,16 +1224,26 @@ export function addNotification(
     ...notif,
   };
 
+  if (isNeonConfigured && sql) {
+    try {
+      await sql`
+        INSERT INTO notifications (id, employee_id, title, message, category, timestamp, is_read, action_url)
+        VALUES (${newItem.id}, ${newItem.employeeId}, ${newItem.title}, ${newItem.message}, ${newItem.category}, ${newItem.timestamp}, ${newItem.isRead}, ${newItem.actionUrl || null});
+      `;
+    } catch (err) {
+      console.warn('Neon notification insert error:', err);
+    }
+  }
+
+  const notifs = db.notifications.get(employeeId) || [];
   db.notifications.set(employeeId, [newItem, ...notifs]);
   return newItem;
 }
 
 // --- PERSONAL ANALYTICS & REPORTS ---
 
-export function getPersonalReport(employeeId: string): PersonalReportSummary {
-  const records = db.attendance.get(employeeId) || [];
-  const leaves = db.leaves.get(employeeId) || [];
-
+export async function getPersonalReport(employeeId: string): Promise<PersonalReportSummary> {
+  const records = await getEmployeeAttendance(employeeId);
   const totalLogs = records.length || 1;
   const presentCount = records.filter(r => r.status === 'present' || r.status === 'late').length;
   const onLeaveCount = records.filter(r => r.status === 'on_leave').length;
@@ -990,7 +1256,6 @@ export function getPersonalReport(employeeId: string): PersonalReportSummary {
   const attendancePct = Math.min(100, Math.round(((presentCount + halfDayCount * 0.5) / totalLogs) * 100));
   const punctualityRate = Math.min(100, Math.round((onTimeCount / Math.max(1, presentCount)) * 100));
 
-  // Weekly hours distribution
   const monthlyHoursTrend = [
     { week: 'Week 1', hours: 41.5, target: 40 },
     { week: 'Week 2', hours: 38.0, target: 40 },
@@ -998,7 +1263,6 @@ export function getPersonalReport(employeeId: string): PersonalReportSummary {
     { week: 'Week 4', hours: 40.2, target: 40 },
   ];
 
-  // Category usage
   const leaveUsageByCategory = [
     { category: 'Paid Time Off', used: 4, total: 18 },
     { category: 'Sick Leave', used: 2, total: 10 },
@@ -1022,7 +1286,7 @@ export function getPersonalReport(employeeId: string): PersonalReportSummary {
   };
 }
 
-// --- HR POLICY ASSISTANT KNOWLEDGE BASE (Instant Answers) ---
+// --- HR POLICY ASSISTANT KNOWLEDGE BASE ---
 
 export const HR_POLICIES = [
   {
@@ -1057,3 +1321,189 @@ export const HR_POLICIES = [
 • Learning & Development Stipend: $1,500 annual budget for books, courses, and engineering certifications.`,
   },
 ];
+
+// --- HR / ADMIN PORTAL OPERATIONS ---
+
+export async function getAllEmployees(): Promise<EmployeeProfile[]> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM employees ORDER BY employee_id ASC;`;
+      if (rows && rows.length > 0) {
+        return rows.map(mapEmployeeRow).filter(Boolean);
+      }
+    } catch {
+      // Fallback
+    }
+  }
+  return Array.from(db.employees.values());
+}
+
+export async function getAllLeaves(): Promise<LeaveRequest[]> {
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      const rows = await sql`SELECT * FROM leaves ORDER BY applied_date DESC;`;
+      if (rows && rows.length > 0) {
+        return rows.map(mapLeaveRow).filter(Boolean);
+      }
+    } catch {
+      // Fallback
+    }
+  }
+  const all: LeaveRequest[] = [];
+  for (const list of db.leaves.values()) {
+    all.push(...list);
+  }
+  return all.sort((a, b) => new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime());
+}
+
+export async function adminApproveLeave(
+  leaveId: string,
+  adminName: string,
+  comments?: string
+): Promise<LeaveRequest> {
+  const approvalDate = new Date().toISOString().split('T')[0];
+
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      await sql`
+        UPDATE leaves
+        SET status = 'approved', approved_by = ${adminName}, approval_date = ${approvalDate}, admin_comments = ${comments || 'Approved by HR'}
+        WHERE id = ${leaveId};
+      `;
+    } catch {
+      // Fallback
+    }
+  }
+
+  // Update in-memory
+  let targetReq: LeaveRequest | null = null;
+  for (const [empId, list] of db.leaves.entries()) {
+    const idx = list.findIndex(l => l.id === leaveId);
+    if (idx !== -1) {
+      list[idx] = {
+        ...list[idx],
+        status: 'approved',
+        approvedBy: adminName,
+        approvalDate,
+        adminComments: comments || 'Approved by HR',
+      };
+      targetReq = list[idx];
+      db.leaves.set(empId, list);
+
+      await addNotification(empId, {
+        title: 'Leave Request Approved',
+        message: `Your ${targetReq.leaveType.toUpperCase()} leave request (${targetReq.startDate} to ${targetReq.endDate}) was APPROVED by ${adminName}.`,
+        category: 'leave',
+        actionUrl: '/leave',
+      });
+      break;
+    }
+  }
+
+  if (!targetReq) {
+    throw new Error('Leave request not found');
+  }
+
+  return targetReq;
+}
+
+export async function adminRejectLeave(
+  leaveId: string,
+  adminName: string,
+  comments?: string
+): Promise<LeaveRequest> {
+  const rejectionDate = new Date().toISOString().split('T')[0];
+
+  if (isNeonConfigured && sql) {
+    try {
+      await ensureNeonSchema();
+      await sql`
+        UPDATE leaves
+        SET status = 'rejected', approved_by = ${adminName}, approval_date = ${rejectionDate}, admin_comments = ${comments || 'Rejected'}
+        WHERE id = ${leaveId};
+      `;
+    } catch {
+      // Fallback
+    }
+  }
+
+  // Update in-memory
+  let targetReq: LeaveRequest | null = null;
+  for (const [empId, list] of db.leaves.entries()) {
+    const idx = list.findIndex(l => l.id === leaveId);
+    if (idx !== -1) {
+      list[idx] = {
+        ...list[idx],
+        status: 'rejected',
+        approvedBy: adminName,
+        approvalDate: rejectionDate,
+        adminComments: comments || 'Rejected by HR',
+      };
+      targetReq = list[idx];
+      db.leaves.set(empId, list);
+
+      await addNotification(empId, {
+        title: 'Leave Request Rejected',
+        message: `Your ${targetReq.leaveType.toUpperCase()} leave request was REJECTED by ${adminName}. Note: ${comments || 'No comment provided.'}`,
+        category: 'leave',
+        actionUrl: '/leave',
+      });
+      break;
+    }
+  }
+
+  if (!targetReq) {
+    throw new Error('Leave request not found');
+  }
+
+  return targetReq;
+}
+
+export async function getAdminOverview() {
+  const employees = await getAllEmployees();
+  const allLeaves = await getAllLeaves();
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const pendingLeaves = allLeaves.filter(l => l.status === 'pending');
+
+  let presentCount = 0;
+  let remoteCount = 0;
+  let onLeaveCount = 0;
+  let lateCount = 0;
+
+  const roster: Array<{ employee: EmployeeProfile; todayRecord: AttendanceRecord | null }> = [];
+
+  for (const emp of employees) {
+    const record = await getTodayAttendanceRecord(emp.employeeId);
+    roster.push({ employee: emp, todayRecord: record });
+
+    if (record) {
+      if (record.status === 'present' || record.status === 'late' || record.status === 'half_day') {
+        presentCount += 1;
+        if (record.workMode === 'remote') remoteCount += 1;
+        if (record.status === 'late') lateCount += 1;
+      } else if (record.status === 'on_leave') {
+        onLeaveCount += 1;
+      }
+    }
+  }
+
+  const totalMonthlyPayroll = employees.reduce((sum, e) => sum + (e.salary?.baseMonthly || 0), 0);
+
+  return {
+    totalEmployees: employees.length,
+    presentToday: presentCount,
+    remoteToday: remoteCount,
+    onLeaveToday: onLeaveCount,
+    lateToday: lateCount,
+    pendingLeavesCount: pendingLeaves.length,
+    totalMonthlyPayroll,
+    roster,
+    pendingLeaves: pendingLeaves.slice(0, 10),
+    employees,
+  };
+}
+

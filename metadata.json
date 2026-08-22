@@ -1,6 +1,0 @@
-{
-  "name": "Dayflow - Human Resource Management System",
-  "description": "Dayflow HRMS Employee Experience portal for attendance, leaves, salary visibility, profiles, personal analytics and notifications.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useEmployee } from '@/context/EmployeeContext';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -54,7 +54,7 @@ export function EmployeeLeaveView() {
 
     try {
       const res = await fetch(
-        `/api/leave?employeeId=${employee.employeeId}&requestId=${requestId}`,
+        `/api/leave?employeeId=${employee.employeeId}&leaveId=${requestId}`,
         { method: 'DELETE' }
       );
       const data = await res.json();

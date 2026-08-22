@@ -12,15 +12,21 @@ export type NavView =
   | 'salary'
   | 'notifications'
   | 'reports'
-  | 'assistant';
+  | 'assistant'
+  | 'admin';
+
+export type AuthModalTab = 'login' | 'signup' | 'demo';
 
 interface EmployeeContextType {
   employee: EmployeeProfile | null;
+  isAuthenticated: boolean;
   activeView: NavView;
   setActiveView: (view: NavView) => void;
   isLoading: boolean;
   todayAttendance: AttendanceRecord | null;
   unreadCount: number;
+  login: (credentials: { email?: string; employeeId?: string; identifier?: string; password?: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { name: string; email: string; phone?: string; department?: string; jobPosition?: string; workMode?: WorkMode; password?: string }) => Promise<{ success: boolean; error?: string }>;
   loginEmployee: (empId: string) => Promise<void>;
   switchDemoUser: (empId: string) => Promise<void>;
   logout: () => void;
@@ -35,6 +41,13 @@ interface EmployeeContextType {
   setOpenEditProfileModal: (open: boolean) => void;
   openHRAssistantModal: boolean;
   setOpenHRAssistantModal: (open: boolean) => void;
+  openAuthModal: boolean;
+  setOpenAuthModal: (open: boolean) => void;
+  authModalTab: AuthModalTab;
+  setAuthModalTab: (tab: AuthModalTab) => void;
+  openAdminAuthModal: boolean;
+  setOpenAdminAuthModal: (open: boolean) => void;
+  enterAdminMode: () => void;
 }
 
 const EmployeeContext = createContext<EmployeeContextType | null>(null);
@@ -57,6 +70,20 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
   const [openApplyLeaveModal, setOpenApplyLeaveModal] = useState(false);
   const [openEditProfileModal, setOpenEditProfileModal] = useState(false);
   const [openHRAssistantModal, setOpenHRAssistantModal] = useState(false);
+  const [openAuthModal, setOpenAuthModal] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<AuthModalTab>('login');
+  const [openAdminAuthModal, setOpenAdminAuthModal] = useState(false);
+
+  const enterAdminMode = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const isVerified = sessionStorage.getItem('dayflow_admin_verified') === 'true';
+      if (isVerified) {
+        setActiveView('admin');
+        return;
+      }
+    }
+    setOpenAdminAuthModal(true);
+  }, []);
 
   // Fetch initial employee profile (Defaults to Alex Rivera EMP-1001)
   const fetchEmployee = useCallback(async (empId: string = 'EMP-1001') => {
@@ -127,6 +154,81 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [employee, refreshAttendance, refreshNotificationsCount]);
 
+  const login = async (credentials: {
+    email?: string;
+    employeeId?: string;
+    identifier?: string;
+    password?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+      const data = await res.json();
+      if (data.success && data.employee) {
+        setEmployee(data.employee);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dayflow_emp_id', data.employee.employeeId);
+        }
+        showToast(`Welcome back, ${data.employee.name}!`, 'success');
+        setOpenAuthModal(false);
+        return { success: true };
+      } else {
+        const errorMsg = data.error || 'Authentication failed.';
+        showToast(errorMsg, 'error');
+        return { success: false, error: errorMsg };
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || 'Network error during login.';
+      showToast(errorMsg, 'error');
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (data: {
+    name: string;
+    email: string;
+    phone?: string;
+    department?: string;
+    jobPosition?: string;
+    workMode?: WorkMode;
+    password?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const resData = await res.json();
+      if (resData.success && resData.employee) {
+        setEmployee(resData.employee);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dayflow_emp_id', resData.employee.employeeId);
+        }
+        showToast(`Welcome to Dayflow! Your Employee ID is ${resData.employee.employeeId}`, 'success');
+        setOpenAuthModal(false);
+        return { success: true };
+      } else {
+        const errorMsg = resData.error || 'Registration failed.';
+        showToast(errorMsg, 'error');
+        return { success: false, error: errorMsg };
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || 'Network error during registration.';
+      showToast(errorMsg, 'error');
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const loginEmployee = async (empId: string) => {
     await fetchEmployee(empId);
     showToast(`Logged in successfully as ${empId}`, 'success');
@@ -147,6 +249,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('dayflow_emp_id', data.employee.employeeId);
         }
         showToast(`Switched account to ${data.employee.name} (${data.employee.jobPosition})`, 'info');
+        setOpenAuthModal(false);
       } else {
         showToast(data.error || 'Failed to switch user', 'error');
       }
@@ -161,6 +264,8 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('dayflow_emp_id');
     }
+    setEmployee(null);
+    setTodayAttendance(null);
     showToast('Logged out of Dayflow HRMS', 'info');
   };
 
@@ -219,11 +324,14 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
     <EmployeeContext.Provider
       value={{
         employee,
+        isAuthenticated: !!employee,
         activeView,
         setActiveView,
         isLoading,
         todayAttendance,
         unreadCount,
+        login,
+        register,
         loginEmployee,
         switchDemoUser,
         logout,
@@ -238,6 +346,13 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
         setOpenEditProfileModal,
         openHRAssistantModal,
         setOpenHRAssistantModal,
+        openAuthModal,
+        setOpenAuthModal,
+        authModalTab,
+        setAuthModalTab,
+        openAdminAuthModal,
+        setOpenAdminAuthModal,
+        enterAdminMode,
       }}
     >
       {children}

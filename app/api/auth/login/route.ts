@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEmployeeByEmail, getEmployeeByEmployeeId } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, employeeId, password } = body;
+    const { email, employeeId, identifier, password } = body;
 
     let employee = null;
-    if (employeeId) {
-      employee = getEmployeeByEmployeeId(employeeId);
-    } else if (email) {
-      employee = getEmployeeByEmail(email);
+    const searchId = employeeId || identifier;
+    const searchEmail = email || identifier;
+
+    if (searchId && searchId.toUpperCase().startsWith('EMP-')) {
+      employee = await getEmployeeByEmployeeId(searchId.toUpperCase().trim());
+    } else if (searchEmail && searchEmail.includes('@')) {
+      employee = await getEmployeeByEmail(searchEmail.trim());
+    } else if (searchId) {
+      employee = (await getEmployeeByEmployeeId(searchId.trim())) || (await getEmployeeByEmail(searchId.trim()));
     }
 
     if (!employee) {
       return NextResponse.json(
-        { error: 'Invalid credentials. No employee record matched.' },
+        { error: 'Invalid credentials. No employee record matched your email or Employee ID.' },
         { status: 401 }
       );
     }

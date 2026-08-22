@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get('employeeId') || 'EMP-1001';
 
-    const notifications = getEmployeeNotifications(employeeId);
+    const notifications = await getEmployeeNotifications(employeeId);
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
     return NextResponse.json({
@@ -25,22 +25,24 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function handleUpdateNotifications(req: NextRequest) {
   try {
     const body = await req.json();
-    const { employeeId, notificationId, markAll } = body;
+    const { employeeId, notificationId, markAll, markAllAsRead } = body;
 
     if (!employeeId) {
       return NextResponse.json({ error: 'Employee ID is required.' }, { status: 400 });
     }
 
-    if (markAll) {
-      markAllNotificationsRead(employeeId);
+    const shouldMarkAll = Boolean(markAll || markAllAsRead);
+
+    if (shouldMarkAll) {
+      await markAllNotificationsRead(employeeId);
       return NextResponse.json({ success: true, message: 'All notifications marked as read.' });
     }
 
     if (notificationId) {
-      markNotificationRead(employeeId, notificationId);
+      await markNotificationRead(employeeId, notificationId);
       return NextResponse.json({ success: true, message: 'Notification marked as read.' });
     }
 
@@ -48,4 +50,12 @@ export async function PATCH(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+}
+
+export async function PATCH(req: NextRequest) {
+  return handleUpdateNotifications(req);
+}
+
+export async function PUT(req: NextRequest) {
+  return handleUpdateNotifications(req);
 }

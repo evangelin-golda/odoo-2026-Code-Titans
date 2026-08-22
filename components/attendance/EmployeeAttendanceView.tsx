@@ -16,8 +16,13 @@ import {
   Laptop,
   Building,
   History,
+  LayoutGrid,
+  List,
+  CalendarDays,
+  Sparkles,
 } from 'lucide-react';
 import { AttendanceRecord, WorkMode } from '@/types/hrms';
+import { AttendanceCalendar } from './AttendanceCalendar';
 
 export function EmployeeAttendanceView() {
   const {
@@ -31,6 +36,11 @@ export function EmployeeAttendanceView() {
   const [selectedLocation, setSelectedLocation] = useState<WorkMode>('office');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+
+  // Selected date details state (rendered on right-side panel)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
 
   useEffect(() => {
     if (!employee) return;
@@ -75,7 +85,16 @@ export function EmployeeAttendanceView() {
     return () => clearInterval(interval);
   }, [isCheckedIn, isCheckedOut, todayAttendance]);
 
-  // Filtered records
+  // Date selection handler: updates the right-side detail panel
+  const handleSelectDate = (date: string, record: AttendanceRecord | null) => {
+    setSelectedDate(date);
+    setSelectedRecord(record);
+    if (viewMode === 'list') {
+      setViewMode('calendar');
+    }
+  };
+
+  // Filtered records for list view
   const filteredRecords = attendanceRecords.filter(rec => {
     if (filterStatus === 'all') return true;
     return rec.status.toLowerCase() === filterStatus.toLowerCase();
@@ -88,20 +107,27 @@ export function EmployeeAttendanceView() {
   const totalHours = attendanceRecords.reduce((acc, r) => acc + (r.durationMinutes || 0) / 60, 0);
   const avgHours = totalDays > 0 ? (totalHours / totalDays).toFixed(1) : '8.5';
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   return (
     <div id="dayflow-employee-attendance-view" className="space-y-6">
       {/* 1. Header & Live Clock Action Card */}
       <div className="p-6 md:p-8 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-sky-700 uppercase tracking-wider">
-              Time & Attendance Tracker
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-sky-700 uppercase tracking-wider">
+                Time & Attendance Tracker
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Live Sync
+              </span>
+            </div>
             <h1 className="text-2xl font-bold text-slate-900">
-              Daily Attendance & Shift Clock
+              Daily Attendance & Shift Calendar
             </h1>
             <p className="text-xs text-slate-500">
-              Standard Shift: 9:00 AM – 6:00 PM (45 hrs weekly). Log your check-ins and check-outs.
+              Standard Shift: 9:00 AM – 6:00 PM (45 hrs weekly). Log punches or inspect your monthly attendance timeline.
             </p>
           </div>
 
@@ -113,7 +139,7 @@ export function EmployeeAttendanceView() {
                 <button
                   type="button"
                   onClick={() => setSelectedLocation('office')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                     selectedLocation === 'office'
                       ? 'bg-slate-900 text-white'
                       : 'text-slate-600 hover:text-slate-900'
@@ -124,7 +150,7 @@ export function EmployeeAttendanceView() {
                 <button
                   type="button"
                   onClick={() => setSelectedLocation('remote')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                     selectedLocation === 'remote'
                       ? 'bg-slate-900 text-white'
                       : 'text-slate-600 hover:text-slate-900'
@@ -150,7 +176,7 @@ export function EmployeeAttendanceView() {
                   <button
                     type="button"
                     onClick={() => handleCheckOut()}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-all shadow-sm active:scale-95"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-all shadow-sm active:scale-95 cursor-pointer"
                   >
                     <Square className="w-4 h-4 fill-white" />
                     Check Out Now
@@ -160,7 +186,7 @@ export function EmployeeAttendanceView() {
                 <button
                   type="button"
                   onClick={() => handleCheckIn(selectedLocation)}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all shadow-sm active:scale-95"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-white" />
                   Check In for Work
@@ -203,93 +229,157 @@ export function EmployeeAttendanceView() {
         </div>
       </div>
 
-      {/* 3. Detailed Attendance History Log Table */}
-      <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-sky-600" />
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Attendance History Log
-            </h2>
+      {/* 3. Main Attendance Log Section (Calendar & List Views) */}
+      <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-5">
+        {/* Section Header with View Mode Switcher */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-sky-50 text-sky-600">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                Attendance Timeline & Logs
+              </h2>
+              <p className="text-xs text-slate-500">
+                Click any specific date on the calendar to view its check-in, check-out, and duration breakdown
+              </p>
+            </div>
           </div>
 
-          {/* Filter Status Selector */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5" /> Filter:
-            </span>
-            <select
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-              className="text-xs py-1.5 px-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-            >
-              <option value="all">All Records</option>
-              <option value="present">Present (On-Time)</option>
-              <option value="late">Late Arrival</option>
-              <option value="half_day">Half Day</option>
-            </select>
+          {/* Controls: View Mode & Filter */}
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setViewMode('calendar')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'calendar'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Calendar View</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'list'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </button>
+            </div>
+
+            {/* Status Filter (Active in List View) */}
+            {viewMode === 'list' && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <Filter className="w-3.5 h-3.5" />
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="py-1.5 px-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:outline-none text-xs font-medium cursor-pointer"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="present">Present (On-Time)</option>
+                  <option value="late">Late Arrival</option>
+                  <option value="half_day">Half Day</option>
+                  <option value="on_leave">On Leave</option>
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Check In</th>
-                <th className="py-3 px-4">Check Out</th>
-                <th className="py-3 px-4">Work Duration</th>
-                <th className="py-3 px-4">Location</th>
-                <th className="py-3 px-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredRecords.map((record: AttendanceRecord) => (
-                <tr key={record.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-3.5 px-4 font-medium text-slate-900">
-                    {record.date}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-slate-700">
-                    {record.checkIn}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-slate-700">
-                    {record.checkOut}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-700 font-medium">
-                    {record.durationMinutes
-                      ? `${(record.durationMinutes / 60).toFixed(1)} hrs`
-                      : '-'}
-                  </td>
-                  <td className="py-3.5 px-4 capitalize text-slate-600">
-                    <span className="inline-flex items-center gap-1.5">
-                      {record.workMode === 'office' ? (
-                        <Building className="w-3.5 h-3.5 text-slate-400" />
-                      ) : (
-                        <Laptop className="w-3.5 h-3.5 text-slate-400" />
-                      )}
-                      {record.workMode}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
-                        record.status === 'present'
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          : record.status === 'late'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : record.status === 'half_day'
-                          ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                          : 'bg-rose-100 text-rose-800 border border-rose-200'
-                      }`}
-                    >
-                      {record.status.replace('_', ' ')}
-                    </span>
-                  </td>
+        {/* View Switch Content */}
+        {viewMode === 'calendar' ? (
+          /* Calendar View Component */
+          <AttendanceCalendar
+            records={attendanceRecords}
+            onSelectDate={handleSelectDate}
+            selectedDate={selectedDate || undefined}
+          />
+        ) : (
+          /* List / Table View */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider bg-slate-50/60">
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4">Check In</th>
+                  <th className="py-3 px-4">Check Out</th>
+                  <th className="py-3 px-4">Work Duration</th>
+                  <th className="py-3 px-4">Location</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Details</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredRecords.map((record: AttendanceRecord) => (
+                  <tr
+                    key={record.id}
+                    onClick={() => handleSelectDate(record.date, record)}
+                    className="hover:bg-sky-50/50 transition-colors cursor-pointer group"
+                  >
+                    <td className="py-3.5 px-4 font-semibold text-slate-900 group-hover:text-sky-700">
+                      {record.date}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-700">
+                      {record.checkIn}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-700">
+                      {record.checkOut || (record.date === todayStr ? 'In Progress' : '—')}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700 font-medium">
+                      {record.durationMinutes
+                        ? `${(record.durationMinutes / 60).toFixed(1)} hrs`
+                        : '—'}
+                    </td>
+                    <td className="py-3.5 px-4 capitalize text-slate-600">
+                      <span className="inline-flex items-center gap-1.5">
+                        {record.workMode === 'office' ? (
+                          <Building className="w-3.5 h-3.5 text-slate-400" />
+                        ) : (
+                          <Laptop className="w-3.5 h-3.5 text-sky-600" />
+                        )}
+                        {record.workMode}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
+                          record.status === 'present'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : record.status === 'late'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : record.status === 'half_day'
+                            ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                            : record.status === 'on_leave'
+                            ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                            : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}
+                      >
+                        {record.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span className="text-[11px] text-sky-600 font-semibold group-hover:underline">
+                        Inspect Day &rarr;
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

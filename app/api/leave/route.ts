@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get('employeeId') || 'EMP-1001';
 
-    const balances = getLeaveBalances(employeeId);
-    const requests = getEmployeeLeaves(employeeId);
+    const balances = await getLeaveBalances(employeeId);
+    const requests = await getEmployeeLeaves(employeeId);
 
     // Summary counts
     const pendingCount = requests.filter(r => r.status === 'pending').length;
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newRequest = applyForLeave(employeeId, {
+    const newRequest = await applyForLeave(employeeId, {
       leaveType,
       startDate,
       endDate,
@@ -82,7 +82,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get('employeeId');
-    const leaveId = searchParams.get('leaveId');
+    const leaveId = searchParams.get('leaveId') || searchParams.get('requestId');
 
     if (!employeeId || !leaveId) {
       return NextResponse.json(
@@ -91,7 +91,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const cancelled = cancelLeaveRequest(employeeId, leaveId);
+    const cancelled = await cancelLeaveRequest(employeeId, leaveId);
     return NextResponse.json({
       success: true,
       message: 'Leave request cancelled successfully.',

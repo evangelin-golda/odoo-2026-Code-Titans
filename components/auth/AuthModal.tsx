@@ -1,19 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useEmployee } from '@/context/EmployeeContext';
-import { useToast } from '@/components/ui/Toast';
+import { LoginForm } from './LoginForm';
+import { SignupForm } from './SignupForm';
 import {
   X,
-  UserCheck,
   Shield,
-  ArrowRight,
-  Lock,
-  Mail,
-  User,
-  KeyRound,
+  LogIn,
+  UserPlus,
+  Users,
+  Sparkles,
 } from 'lucide-react';
-import Image from 'next/image';
 
 export function AuthModal({
   isOpen,
@@ -22,85 +20,16 @@ export function AuthModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { switchDemoUser } = useEmployee();
-  const { showToast } = useToast();
-
-  const [customEmail, setCustomEmail] = useState('');
-  const [customPassword, setCustomPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { authModalTab, setAuthModalTab } = useEmployee();
 
   if (!isOpen) return null;
-
-  const personas = [
-    {
-      id: 'EMP-1001',
-      name: 'Alex Rivera',
-      role: 'Senior Software Engineer',
-      dept: 'Engineering & UI',
-      avatar:
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'EMP-1002',
-      name: 'Sarah Chen',
-      role: 'Lead UI/UX Designer',
-      dept: 'Design & UX',
-      avatar:
-        'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'EMP-1003',
-      name: 'Marcus Vance',
-      role: 'DevOps & Reliability Engineer',
-      dept: 'Infrastructure',
-      avatar:
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    },
-  ];
-
-  const handleSelectPersona = async (employeeId: string) => {
-    setIsSubmitting(true);
-    try {
-      await switchDemoUser(employeeId);
-      showToast(`Switched active session to ${employeeId}`, 'success');
-      onClose();
-    } catch (err: any) {
-      showToast(err.message || 'Error switching persona', 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCustomLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: customEmail, password: customPassword }),
-      });
-      const data = await res.json();
-      if (data.success && data.user) {
-        await switchDemoUser(data.user.employeeId);
-        showToast(`Logged in as ${data.user.name}`, 'success');
-        onClose();
-      } else {
-        showToast(data.error || 'Invalid credentials', 'error');
-      }
-    } catch {
-      showToast('Authentication failed', 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div
       id="dayflow-auth-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
     >
-      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 text-slate-900">
+      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 text-slate-900 my-8">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
@@ -109,10 +38,10 @@ export function AuthModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                Employee Session & Personas
+                Dayflow Authentication Portal
               </h2>
               <p className="text-xs text-slate-500">
-                Switch profiles to verify strict data isolation & role boundaries
+                Enterprise HRMS Employee Access & Registration
               </p>
             </div>
           </div>
@@ -125,83 +54,51 @@ export function AuthModal({
           </button>
         </div>
 
-        {/* Persona Switcher List */}
-        <div className="mt-4 space-y-3">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-            Quick Persona Switcher (Demo Employees)
-          </span>
-
-          <div className="space-y-2">
-            {personas.map(p => (
-              <div
-                key={p.id}
-                onClick={() => handleSelectPersona(p.id)}
-                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50/60 hover:border-sky-300 cursor-pointer transition-all flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0">
-                    <Image
-                      src={p.avatar}
-                      alt={p.name}
-                      fill
-                      className="object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-900">{p.name}</span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white text-slate-600 border border-slate-200">
-                        {p.id}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500">{p.role} • {p.dept}</p>
-                  </div>
-                </div>
-
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition-all" />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Password Login Option */}
-        <form onSubmit={handleCustomLogin} className="mt-6 pt-4 border-t border-slate-100 space-y-3">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-            Or Sign In with Corporate Email
-          </span>
-
-          <div className="space-y-2 text-xs">
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="email"
-                placeholder="alex.morgan@dayflow.corp"
-                value={customEmail}
-                onChange={e => setCustomEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900"
-              />
-            </div>
-            <div className="relative">
-              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="password"
-                placeholder="Password (demo: any)"
-                value={customPassword}
-                onChange={e => setCustomPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900"
-              />
-            </div>
-          </div>
+        {/* Tab Switcher */}
+        <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100/80 rounded-xl my-4 text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setAuthModalTab('login')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
+              authModalTab === 'login'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In</span>
+          </button>
 
           <button
-            type="submit"
-            disabled={isSubmitting || !customEmail}
-            className="w-full py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl disabled:opacity-40 transition-colors"
+            type="button"
+            onClick={() => setAuthModalTab('signup')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg transition-all ${
+              authModalTab === 'signup'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
           >
-            Authenticate Employee Session
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Create Account</span>
           </button>
-        </form>
+        </div>
+
+        {/* Tab Content */}
+        <div className="mt-2">
+          {authModalTab === 'login' && (
+            <LoginForm
+              onSuccess={onClose}
+              onSwitchToSignup={() => setAuthModalTab('signup')}
+            />
+          )}
+
+          {authModalTab === 'signup' && (
+            <SignupForm
+              onSuccess={onClose}
+              onSwitchToLogin={() => setAuthModalTab('login')}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

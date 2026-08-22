@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { registerNewEmployee } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, phone, department, jobPosition, password } = body;
+    const { name, email, phone, department, jobPosition, workMode, password } = body;
 
     if (!name || !email) {
       return NextResponse.json(
@@ -23,12 +25,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Securely register strictly as Employee
-    const newEmployee = registerNewEmployee({
+    const newEmployee = await registerNewEmployee({
       name,
       email,
       phone,
       department,
       jobPosition,
+      workMode,
+      password,
     });
 
     return NextResponse.json({

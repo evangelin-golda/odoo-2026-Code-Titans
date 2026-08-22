@@ -48,12 +48,12 @@ export function EmployeeNotificationsView() {
     if (!employee) return;
     try {
       const res = await fetch('/api/notifications', {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId: employee.employeeId,
           notificationId: id,
-          markAllAsRead: !id,
+          markAll: !id,
         }),
       });
       const data = await res.json();

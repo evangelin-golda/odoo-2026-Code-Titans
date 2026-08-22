@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get('month') || undefined;
     const status = searchParams.get('status') || undefined;
 
-    const records = getEmployeeAttendance(employeeId, { month, status });
-    const today = getTodayAttendanceRecord(employeeId);
+    const records = await getEmployeeAttendance(employeeId, { month, status });
+    const today = await getTodayAttendanceRecord(employeeId);
 
     // Calculate quick stats
     const totalPresent = records.filter(r => r.status === 'present' || r.status === 'late').length;
@@ -53,14 +53,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'check_in') {
-      const record = recordCheckIn(employeeId, (workMode as WorkMode) || 'office', notes);
+      const record = await recordCheckIn(employeeId, (workMode as WorkMode) || 'office', notes);
       return NextResponse.json({
         success: true,
         message: 'Checked in successfully!',
         record,
       });
     } else if (action === 'check_out') {
-      const record = recordCheckOut(employeeId, notes);
+      const record = await recordCheckOut(employeeId, notes);
       return NextResponse.json({
         success: true,
         message: 'Checked out successfully!',

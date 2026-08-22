@@ -10,14 +10,14 @@ export async function GET(req: NextRequest) {
     const payslipId = searchParams.get('payslipId');
 
     if (payslipId) {
-      const slip = getPayslipById(employeeId, payslipId);
+      const slip = await getPayslipById(employeeId, payslipId);
       if (!slip) {
         return NextResponse.json({ error: 'Payslip not found.' }, { status: 404 });
       }
       return NextResponse.json({ success: true, payslip: slip });
     }
 
-    const { salaryStructure, payslips } = getSalaryDetails(employeeId);
+    const { salaryStructure, payslips } = await getSalaryDetails(employeeId);
 
     // Compute annual earnings & deductions summary
     const annualGross = salaryStructure.baseAnnual + (salaryStructure.performanceBonus * 12);

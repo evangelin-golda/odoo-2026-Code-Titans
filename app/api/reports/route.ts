@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get('employeeId') || 'EMP-1001';
 
-    const report = getPersonalReport(employeeId);
+    const report = await getPersonalReport(employeeId);
     return NextResponse.json({ success: true, report });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

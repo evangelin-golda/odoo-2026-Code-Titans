@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const empId = searchParams.get('employeeId') || 'EMP-1001';
 
-    const employee = getEmployeeByEmployeeId(empId);
+    const employee = await getEmployeeByEmployeeId(empId);
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found.' }, { status: 404 });
     }

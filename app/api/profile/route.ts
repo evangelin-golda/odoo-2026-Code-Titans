@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const empId = searchParams.get('employeeId') || 'EMP-1001';
 
-    const employee = getEmployeeByEmployeeId(empId);
+    const employee = await getEmployeeByEmployeeId(empId);
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found.' }, { status: 404 });
     }
@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Attempting to send restricted fields will be safely ignored or filtered
-    const updated = updateEmployeeProfile(employeeId, {
+    const updated = await updateEmployeeProfile(employeeId, {
       phone,
       address,
       bio,
