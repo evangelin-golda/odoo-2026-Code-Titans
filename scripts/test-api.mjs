@@ -87,6 +87,7 @@ async function runAllTests() {
         phone: '+1 (555) 321-9988',
         department: 'Quality Assurance',
         jobPosition: 'QA Automation Engineer',
+        role: 'employee',
       }),
     },
     (data) => data.success === true && !!data.employee?.employeeId
@@ -94,7 +95,76 @@ async function runAllTests() {
 
   const registeredId = registered?.employee?.employeeId || testEmpId;
 
-  // 4. Attendance GET
+  // 4. Auth Resend OTP - Send Code
+  const otpRes = await testEndpoint(
+    'Auth / OTP (Send Verification Code)',
+    '/api/auth/otp',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'send_otp',
+        email: 'bharani.flow@gmail.com',
+      }),
+    },
+    (data) => data.success === true && data.isHR === true && !!data.otpCode
+  );
+
+  // 5. Auth Resend OTP - Verify Code & Auto-Route
+  if (otpRes?.otpCode) {
+    await testEndpoint(
+      'Auth / OTP (Verify Code & Auto-Route)',
+      '/api/auth/otp',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'verify_otp',
+          email: 'bharani.flow@gmail.com',
+          code: otpRes.otpCode,
+        }),
+      },
+      (data) => data.success === true && data.targetView === 'admin'
+    );
+  }
+
+  // 6. Auth OAuth (Google SSO)
+  await testEndpoint(
+    'Auth / OAuth (Google SSO)',
+    '/api/auth/oauth',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        provider: 'google',
+        email: 'bharani.flow@gmail.com',
+        name: 'Bharani Flow',
+      }),
+    },
+    (data) => data.success === true && data.targetView === 'admin' && data.isHR === true
+  );
+
+  // 7. Auth OAuth (GitHub SSO)
+  await testEndpoint(
+    'Auth / OAuth (GitHub SSO)',
+    '/api/auth/oauth',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        provider: 'github',
+        email: 'developer@github.com',
+        name: 'GitHub Engineer',
+      }),
+    },
+    (data) => data.success === true && data.employee?.email === 'developer@github.com'
+  );
+
+  // 8. Admin Overview GET
+  await testEndpoint(
+    'Admin / Overview (Stats & Live Roster)',
+    '/api/admin',
+    { method: 'GET' },
+    (data) => data.success === true && data.overview?.totalEmployees >= 1
+  );
+
+  // 9. Attendance GET
   await testEndpoint(
     'Attendance (Fetch Records & Stats)',
     `/api/attendance?employeeId=${testEmpId}`,
@@ -102,7 +172,7 @@ async function runAllTests() {
     (data) => data.success === true && Array.isArray(data.records) && data.stats !== undefined
   );
 
-  // 5. Attendance Check-In POST (using newly registered user to avoid duplicate check-in error)
+  // 10. Attendance Check-In POST
   await testEndpoint(
     'Attendance (Record Check-In)',
     '/api/attendance',
@@ -118,7 +188,7 @@ async function runAllTests() {
     (data) => data.success === true && data.record?.status !== undefined
   );
 
-  // 6. Attendance Check-Out POST
+  // 11. Attendance Check-Out POST
   await testEndpoint(
     'Attendance (Record Check-Out)',
     '/api/attendance',
@@ -133,7 +203,7 @@ async function runAllTests() {
     (data) => data.success === true && !!data.record?.checkOut
   );
 
-  // 7. Leave GET
+  // 12. Leave GET
   await testEndpoint(
     'Leave (Fetch Balances & Requests)',
     `/api/leave?employeeId=${testEmpId}`,
@@ -141,7 +211,7 @@ async function runAllTests() {
     (data) => data.success === true && Array.isArray(data.balances) && Array.isArray(data.requests)
   );
 
-  // 8. Leave POST (Apply for Casual Leave)
+  // 13. Leave POST (Apply for Casual Leave)
   const appliedLeave = await testEndpoint(
     'Leave (Submit Leave Request)',
     '/api/leave',
@@ -158,7 +228,7 @@ async function runAllTests() {
     (data) => data.success === true && data.leave?.status === 'pending'
   );
 
-  // 9. Leave DELETE (Cancel Leave Request)
+  // 14. Leave DELETE (Cancel Leave Request)
   if (appliedLeave?.leave?.id) {
     await testEndpoint(
       'Leave (Cancel Leave Request)',
@@ -168,7 +238,7 @@ async function runAllTests() {
     );
   }
 
-  // 10. Salary GET
+  // 15. Salary GET
   await testEndpoint(
     'Salary (Fetch Structure & Payslips)',
     `/api/salary?employeeId=${testEmpId}`,
@@ -176,7 +246,7 @@ async function runAllTests() {
     (data) => data.success === true && data.salaryStructure?.currency === 'USD' && Array.isArray(data.payslips)
   );
 
-  // 11. Notifications GET
+  // 16. Notifications GET
   await testEndpoint(
     'Notifications (Fetch Alerts & Unread Count)',
     `/api/notifications?employeeId=${testEmpId}`,
@@ -184,7 +254,7 @@ async function runAllTests() {
     (data) => data.success === true && Array.isArray(data.notifications)
   );
 
-  // 12. Notifications PATCH (Mark All as Read)
+  // 17. Notifications PATCH (Mark All as Read)
   await testEndpoint(
     'Notifications (Mark All As Read via PATCH)',
     '/api/notifications',
@@ -198,7 +268,7 @@ async function runAllTests() {
     (data) => data.success === true
   );
 
-  // 13. Profile GET
+  // 18. Profile GET
   await testEndpoint(
     'Profile (Fetch Employee Details)',
     `/api/profile?employeeId=${testEmpId}`,
@@ -206,7 +276,7 @@ async function runAllTests() {
     (data) => data.success === true && data.profile?.employeeId === testEmpId
   );
 
-  // 14. Profile PUT (Update Sandboxed Contact Fields)
+  // 19. Profile PUT (Update Sandboxed Contact Fields)
   await testEndpoint(
     'Profile (Update Allowed Fields via PUT)',
     '/api/profile',
@@ -221,7 +291,7 @@ async function runAllTests() {
     (data) => data.success === true && data.profile?.bio !== undefined
   );
 
-  // 15. Reports GET
+  // 20. Reports GET
   await testEndpoint(
     'Reports (Fetch Personal Analytics)',
     `/api/reports?employeeId=${testEmpId}`,
@@ -229,7 +299,7 @@ async function runAllTests() {
     (data) => data.success === true && data.report?.attendancePercentage !== undefined
   );
 
-  // 16. Assistant GET
+  // 21. Assistant GET
   await testEndpoint(
     'HR Assistant (Query Policies via GET)',
     '/api/assistant?q=leave%20policy',
@@ -237,7 +307,7 @@ async function runAllTests() {
     (data) => data.success === true && typeof data.answer === 'string'
   );
 
-  // 17. Assistant POST
+  // 22. Assistant POST
   await testEndpoint(
     'HR Assistant (Query Policies via POST)',
     '/api/assistant',
