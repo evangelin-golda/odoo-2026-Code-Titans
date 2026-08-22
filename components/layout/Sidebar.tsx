@@ -8,19 +8,15 @@ import {
   Clock,
   CalendarDays,
   CreditCard,
-  BarChart3,
-  BookOpen,
+  Bell,
+  LogOut,
+  ShieldCheck,
   Play,
   Square,
-  Shield,
-  ShieldCheck,
   Sparkles,
-  MapPin,
-  Laptop,
-  LogOut,
-  KeyRound,
+  BarChart3,
 } from 'lucide-react';
-import Image from 'next/image';
+import { DayflowLogo } from '../ui/DayflowLogo';
 
 interface NavItem {
   id: NavView;
@@ -35,10 +31,10 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
     activeView,
     setActiveView,
     todayAttendance,
+    unreadCount,
     handleCheckIn,
     handleCheckOut,
     setOpenApplyLeaveModal,
-    setOpenAuthModal,
     enterAdminMode,
     logout,
   } = useEmployee();
@@ -83,11 +79,16 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'profile', label: 'My Profile', icon: User },
-    { id: 'attendance', label: 'Attendance Log', icon: Clock },
-    { id: 'leave', label: 'Leave & Time Off', icon: CalendarDays },
-    { id: 'salary', label: 'Salary & Payslips', icon: CreditCard },
-    { id: 'reports', label: 'Personal Analytics', icon: BarChart3 },
-    { id: 'assistant', label: 'HR Handbook & FAQ', icon: BookOpen },
+    { id: 'attendance', label: 'Attendance', icon: Clock },
+    { id: 'leave', label: 'Leave Requests', icon: CalendarDays },
+    { id: 'salary', label: 'Payroll / Salary', icon: CreditCard },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: Bell,
+      badge: unreadCount > 0 ? unreadCount : undefined,
+    },
+    { id: 'reports', label: 'Analytics & Reports', icon: BarChart3 },
   ];
 
   const handleNavClick = (view: NavView) => {
@@ -100,78 +101,47 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
   return (
     <aside
       id="dayflow-sidebar"
-      className="flex flex-col justify-between h-full w-64 bg-white border-r border-slate-200 p-4 select-none"
+      className="flex flex-col justify-between h-full w-64 bg-white border-r border-[#E8E2F0] select-none"
     >
-      {/* Upper Navigation Links */}
-      <div className="space-y-6">
-        {/* Employee Mini Card */}
-        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center gap-3">
-          <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-slate-200 ring-2 ring-sky-500/20 shrink-0">
-            {employee?.avatarUrl ? (
-              <Image
-                src={employee.avatarUrl}
-                alt={employee.name}
-                fill
-                className="object-cover"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center font-bold text-sky-700 bg-sky-50">
-                {employee?.name?.charAt(0) || 'E'}
-              </div>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-bold text-slate-900 truncate">{employee?.name}</div>
-            <div className="text-[11px] text-slate-500 truncate">{employee?.jobPosition}</div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="inline-flex items-center gap-1 text-[10px] text-sky-700 font-mono font-medium">
-                <Shield className="w-2.5 h-2.5" />
-                {employee?.employeeId}
-              </span>
-              <span className="text-slate-300">•</span>
-              <span className="text-[10px] text-slate-500 uppercase font-medium">
-                {employee?.workMode}
-              </span>
-            </div>
-          </div>
+      {/* Upper Navigation Links & Logo */}
+      <div className="space-y-4">
+        {/* Brand Header */}
+        <div className="p-6 pb-3 border-b border-[#E8E2F0]">
+          <DayflowLogo size={36} showText={true} showSubtitle={true} />
         </div>
 
         {/* Navigation List */}
-        <nav className="space-y-1">
-          <div className="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Employee Workspace
+        <nav className="px-3 space-y-1" aria-label="Sidebar Navigation">
+          <div className="px-3 pb-2 text-[10px] font-bold text-[#1E1035]/45 uppercase tracking-wider">
+            Workspace Navigation
           </div>
-          {navItems.map(item => {
+
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;
             return (
               <button
                 key={item.id}
+                id={`sidebar-nav-${item.id}`}
                 type="button"
                 onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all duration-150 cursor-pointer ${
                   isActive
-                    ? 'bg-sky-50 text-sky-800 font-semibold border border-sky-200/80 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-[#F7F4FA] text-[#7B2CBF] border-r-4 border-[#7B2CBF] shadow-xs'
+                    : 'text-[#1E1035]/75 hover:bg-[#F7F4FA] hover:text-[#1E1035]'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon
                     className={`w-4 h-4 transition-colors ${
-                      isActive ? 'text-sky-600' : 'text-slate-400 group-hover:text-slate-600'
+                      isActive ? 'text-[#7B2CBF]' : 'text-[#1E1035]/60'
                     }`}
                   />
                   <span>{item.label}</span>
                 </div>
+
                 {item.badge !== undefined && (
-                  <span
-                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${
-                      isActive
-                        ? 'bg-sky-600 text-white'
-                        : 'bg-rose-500 text-white font-bold'
-                    }`}
-                  >
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#7B2CBF] text-white">
                     {item.badge}
                   </span>
                 )}
@@ -181,26 +151,29 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
 
           {/* Privileged Management Section */}
           <div className="pt-3">
-            <div className="px-3 pb-2 text-[10px] font-bold text-purple-700 uppercase tracking-wider flex items-center justify-between">
+            <div className="px-3 pb-2 text-[10px] font-bold text-[#7B2CBF] uppercase tracking-wider flex items-center justify-between">
               <span>HR & Administration</span>
-              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 font-extrabold">Privileged</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-[#7B2CBF]/10 text-[#7B2CBF] font-bold">
+                Privileged
+              </span>
             </div>
             <button
               type="button"
+              id="sidebar-admin-portal-btn"
               onClick={() => {
                 enterAdminMode();
                 if (onCloseMobile) onCloseMobile();
               }}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all group cursor-pointer border ${
                 activeView === 'admin'
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'text-purple-900 bg-purple-50/70 hover:bg-purple-100/90 border border-purple-200/70'
+                  ? 'bg-[#7B2CBF] text-white border-[#7B2CBF] shadow-xs'
+                  : 'text-[#7B2CBF] bg-[#F7F4FA] hover:bg-[#ECE5F5] border-[#E8E2F0]'
               }`}
             >
               <div className="flex items-center gap-3">
                 <ShieldCheck
                   className={`w-4 h-4 transition-colors ${
-                    activeView === 'admin' ? 'text-white' : 'text-purple-600'
+                    activeView === 'admin' ? 'text-white' : 'text-[#7B2CBF]'
                   }`}
                 />
                 <span>HR / Admin Portal</span>
@@ -208,8 +181,8 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
               <span
                 className={`px-1.5 py-0.5 text-[10px] font-bold rounded-md ${
                   activeView === 'admin'
-                    ? 'bg-purple-700 text-white'
-                    : 'bg-purple-200 text-purple-900'
+                    ? 'bg-[#6824A3] text-white'
+                    : 'bg-[#7B2CBF]/15 text-[#7B2CBF]'
                 }`}
               >
                 🔒 Protected
@@ -219,17 +192,17 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
         </nav>
       </div>
 
-      {/* Bottom Punch Widget & Quick Action */}
-      <div className="space-y-3 pt-4 border-t border-slate-100">
+      {/* Bottom Live Punch Widget & Quick Action */}
+      <div className="p-3 space-y-2.5 border-t border-[#E8E2F0]">
         {/* Live Shift Card */}
-        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-[11px] mb-2">
-            <span className="text-slate-500 font-medium flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-sky-600" />
+        <div className="p-3 bg-[#F7F4FA] rounded-2xl border border-[#E8E2F0] shadow-xs">
+          <div className="flex items-center justify-between text-[11px] mb-1.5">
+            <span className="text-[#1E1035]/60 font-semibold flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-[#7B2CBF]" />
               Live Shift Timer
             </span>
             <span
-              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
                 isCheckedOut
                   ? 'bg-slate-200 text-slate-700'
                   : isCheckedIn
@@ -241,29 +214,29 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
             </span>
           </div>
 
-          <div className="text-xl font-mono font-bold text-slate-900 tracking-wider my-1 text-center py-1.5 bg-white rounded-xl border border-slate-200/90 shadow-xs">
+          <div className="text-base font-mono font-bold text-[#1E1035] tracking-wider text-center py-1 bg-white rounded-xl border border-[#E8E2F0] shadow-2xs">
             {elapsedDuration}
           </div>
 
-          <div className="mt-3">
+          <div className="mt-2.5">
             {isCheckedOut ? (
-              <div className="text-center text-[11px] text-slate-500 py-1 font-medium">
+              <div className="text-center text-[10px] text-[#1E1035]/60 py-0.5 font-medium">
                 Shift ended at {todayAttendance?.checkOut}
               </div>
             ) : isCheckedIn ? (
               <button
                 type="button"
                 onClick={() => handleCheckOut()}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all shadow-xs active:scale-[0.98]"
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs font-bold rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer"
               >
                 <Square className="w-3.5 h-3.5 fill-rose-600 text-rose-600" />
-                Check Out Now
+                Check Out
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => handleCheckIn('office')}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-xs active:scale-[0.98]"
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs font-bold rounded-xl bg-[#7B2CBF] hover:bg-[#6824A3] text-white transition-all shadow-xs cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5 fill-white text-white" />
                 Check In (Office)
@@ -272,30 +245,31 @@ export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
           </div>
         </div>
 
-        {/* Quick Leave Request Button */}
+        {/* Quick Apply Leave Button */}
         <button
           type="button"
           onClick={() => {
             setOpenApplyLeaveModal(true);
             if (onCloseMobile) onCloseMobile();
           }}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors shadow-xs cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-bold text-[#1E1035] hover:bg-[#F7F4FA] bg-white rounded-xl border border-[#E8E2F0] transition-colors shadow-2xs cursor-pointer"
         >
-          <CalendarDays className="w-3.5 h-3.5 text-sky-600" />
-          Apply for Time Off
+          <CalendarDays className="w-3.5 h-3.5 text-[#7B2CBF]" />
+          <span>Apply for Time Off</span>
         </button>
 
         {/* Sign Out Button */}
         <button
           type="button"
+          id="sidebar-logout-button"
           onClick={() => {
             logout();
             if (onCloseMobile) onCloseMobile();
           }}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-100 hover:border-rose-200 transition-colors cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
-          Sign Out
+          <span>Sign Out</span>
         </button>
       </div>
     </aside>

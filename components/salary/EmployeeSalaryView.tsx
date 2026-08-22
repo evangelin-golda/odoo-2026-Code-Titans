@@ -4,426 +4,449 @@ import React, { useState, useEffect } from 'react';
 import { useEmployee } from '@/context/EmployeeContext';
 import {
   CreditCard,
+  Lock,
   Download,
   FileText,
   DollarSign,
+  Building2,
   Calendar,
   CheckCircle2,
-  Lock,
-  Eye,
-  Building,
   Printer,
-  X,
+  Info,
 } from 'lucide-react';
-import { Payslip, SalaryStructure } from '@/types/hrms';
+import { Card, CardHeader } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { Modal } from '../ui/Modal';
 
 export function EmployeeSalaryView() {
   const { employee } = useEmployee();
-  const [salaryStructure, setSalaryStructure] = useState<SalaryStructure | null>(null);
-  const [payslips, setPayslips] = useState<Payslip[]>([]);
-  const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [selectedSlip, setSelectedSlip] = useState<any | null>(null);
 
-  useEffect(() => {
-    if (!employee) return;
-    setIsLoading(true);
-    fetch(`/api/salary?employeeId=${employee.employeeId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setSalaryStructure(data.salaryStructure);
-          setPayslips(data.payslips);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setIsLoading(false));
-  }, [employee]);
+  const salary = {
+    baseSalary: 8500,
+    hra: 1500,
+    specialAllowance: 1000,
+    transportAllowance: 350,
+    grossSalary: 11350,
+    pfDeduction: 680,
+    taxDeduction: 1362,
+    otherDeductions: 0,
+    netSalary: 9308,
+    bankName: 'Chase Bank NA',
+    accountNumber: '•••• •••• 9921',
+    ifscCode: 'CHASUS33XX',
+    panNumber: 'USA-TAX-8891',
+  };
+
+  const pastSlips = [
+    {
+      id: 'slip-1',
+      monthYear: 'August 2026',
+      grossSalary: 11350,
+      pfDeduction: 680,
+      taxDeduction: 1362,
+      netSalary: 9308,
+      paymentStatus: 'Scheduled',
+      paymentDate: '2026-08-31',
+    },
+    {
+      id: 'slip-2',
+      monthYear: 'July 2026',
+      grossSalary: 11350,
+      pfDeduction: 680,
+      taxDeduction: 1362,
+      netSalary: 9308,
+      paymentStatus: 'Paid',
+      paymentDate: '2026-07-31',
+    },
+    {
+      id: 'slip-3',
+      monthYear: 'June 2026',
+      grossSalary: 11350,
+      pfDeduction: 680,
+      taxDeduction: 1362,
+      netSalary: 9308,
+      paymentStatus: 'Paid',
+      paymentDate: '2026-06-30',
+    },
+  ];
 
   if (!employee) return null;
 
   return (
-    <div id="dayflow-employee-salary-view" className="space-y-6">
-      {/* 1. Header Banner */}
-      <div className="p-6 md:p-8 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-sky-700 uppercase tracking-wider">
-              Payroll & Earnings
+    <div className="space-y-6 animate-in fade-in duration-200 max-w-7xl mx-auto">
+      {/* Top Banner with Read-Only indicator */}
+      <div className="p-6 sm:p-8 rounded-2xl bg-[#F7F4FA] border border-[#E8E2F0] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#7B2CBF] bg-[#7B2CBF]/10 px-2.5 py-0.5 rounded-md">
+              Salary & Compensation
             </span>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Salary Structure & Payslip Archives
-            </h1>
-            <p className="text-xs text-slate-500">
-              Review your monthly compensation breakdown, statutory tax deductions, and verified pay stubs.
-            </p>
+            <span className="text-xs text-[#1E1035]/40">•</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#FFFFFF] border border-[#E8E2F0] text-[#1E1035]/70 flex items-center gap-1">
+              <Lock size={11} />
+              <span>Read-Only Access</span>
+            </span>
           </div>
+          <h2 className="text-2xl font-bold text-[#1E1035] tracking-tight mt-1.5">
+            My Payroll & Earnings
+          </h2>
+          <p className="text-xs text-[#1E1035]/70 max-w-lg mt-0.5 leading-relaxed">
+            Transparent breakdown of your agreed base pay, house rent allowance, statutory tax withholdings, and monthly payment stubs.
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
-            <Lock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Confidential Employee Record</span>
+        {/* Current Month Net Pay Box */}
+        <div className="bg-[#FFFFFF] p-4 sm:p-5 rounded-xl border border-[#E8E2F0] shadow-xs text-left sm:text-right w-full md:w-auto">
+          <span className="text-[11px] font-bold text-[#1E1035]/60 uppercase tracking-wider block">
+            August 2026 Net Take-Home
+          </span>
+          <p className="text-2xl font-extrabold text-[#7B2CBF] mt-0.5">
+            ${salary.netSalary.toLocaleString()}{' '}
+            <span className="text-xs font-medium text-[#1E1035]/60">USD</span>
+          </p>
+          <div className="flex items-center sm:justify-end gap-1.5 text-xs text-emerald-700 font-semibold mt-1">
+            <CheckCircle2 size={13} />
+            <span>Scheduled for Direct Deposit Aug 31</span>
           </div>
         </div>
       </div>
 
-      {/* 2. Salary Breakdown Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Gross Monthly Pay
-          </span>
-          <div className="text-2xl font-bold text-slate-900">
-            ${salaryStructure
-              ? (
-                  salaryStructure.baseMonthly +
-                  salaryStructure.hra +
-                  salaryStructure.specialAllowance +
-                  salaryStructure.performanceBonus
-                ).toLocaleString()
-              : '20,300'}
-          </div>
-          <p className="text-[11px] text-slate-500">
-            Base + HRA + Special Allowances
-          </p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Statutory Deductions
-          </span>
-          <div className="text-2xl font-bold text-rose-600">
-            -${salaryStructure
-              ? (
-                  salaryStructure.providentFund +
-                  salaryStructure.professionalTax +
-                  salaryStructure.healthInsurance
-                ).toLocaleString()
-              : '2,000'}
-          </div>
-          <p className="text-[11px] text-slate-500">
-            PF + Health Insurance + Prof Tax
-          </p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 shadow-xs space-y-2">
-          <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
-            Net Take-Home Salary
-          </span>
-          <div className="text-2xl font-bold text-emerald-950">
-            ${salaryStructure ? salaryStructure.netMonthly.toLocaleString() : '16,720'}
-          </div>
-          <p className="text-[11px] text-emerald-700">
-            Credited directly to Bank on 30th/31st
-          </p>
-        </div>
+      {/* Security notice */}
+      <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-indigo-900 text-xs flex items-center gap-2.5">
+        <Info size={16} className="text-[#7B2CBF] shrink-0" />
+        <span>
+          <strong>Notice:</strong> Per organization policy, salary structures and compensation parameters are administered strictly by HR Administration.
+        </span>
       </div>
 
-      {/* 3. Detailed Component Breakdown Table */}
-      {salaryStructure && (
-        <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Component-Wise Compensation Breakdown
-            </h2>
-            <span className="text-xs text-slate-500 font-mono">
-              Currency: {salaryStructure.currency}
-            </span>
-          </div>
+      {/* Main Salary Structure Breakdown Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Cols: Itemized Salary Structure */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader
+              title="Current Salary Structure"
+              subtitle="Monthly earnings and statutory deductions"
+              icon={<CreditCard size={18} />}
+            />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Earnings Column */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider pb-1 border-b border-slate-100">
-                1. Earnings / Allowances
-              </h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-600">Basic Salary</span>
-                  <span className="font-semibold text-slate-900">
-                    ${salaryStructure.baseMonthly.toLocaleString()}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-5 border-b border-[#E8E2F0]">
+              <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200">
+                <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider block">
+                  Total Gross Earnings
+                </span>
+                <p className="text-2xl font-extrabold text-emerald-900 mt-1">
+                  ${salary.grossSalary.toLocaleString()}
+                </p>
+                <span className="text-[11px] text-emerald-700 block mt-0.5">
+                  Pre-tax monthly compensation
+                </span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-rose-50/50 border border-rose-200">
+                <span className="text-xs font-semibold text-rose-800 uppercase tracking-wider block">
+                  Total Deductions
+                </span>
+                <p className="text-2xl font-extrabold text-rose-900 mt-1">
+                  -${(salary.pfDeduction + salary.taxDeduction + salary.otherDeductions).toLocaleString()}
+                </p>
+                <span className="text-[11px] text-rose-700 block mt-0.5">
+                  PF contributions & tax withholding
+                </span>
+              </div>
+            </div>
+
+            {/* Detailed Row Items */}
+            <div className="pt-4 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E1035]/60">
+                Earnings Components
+              </h4>
+              <div className="space-y-2 text-xs divide-y divide-[#E8E2F0]">
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-[#1E1035]/80 font-medium">Base Salary</span>
+                  <span className="font-bold text-[#1E1035] font-mono">
+                    ${salary.baseSalary.toLocaleString()}
                   </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-600">House Rent Allowance (HRA)</span>
-                  <span className="font-semibold text-slate-900">
-                    ${salaryStructure.hra.toLocaleString()}
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-[#1E1035]/80 font-medium">House Rent Allowance (HRA)</span>
+                  <span className="font-bold text-[#1E1035] font-mono">
+                    ${salary.hra.toLocaleString()}
                   </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-600">Special Allowance</span>
-                  <span className="font-semibold text-slate-900">
-                    ${salaryStructure.specialAllowance.toLocaleString()}
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-[#1E1035]/80 font-medium">Special Allowance</span>
+                  <span className="font-bold text-[#1E1035] font-mono">
+                    ${salary.specialAllowance.toLocaleString()}
                   </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-600">Performance Incentive</span>
-                  <span className="font-semibold text-slate-900">
-                    ${salaryStructure.performanceBonus.toLocaleString()}
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-[#1E1035]/80 font-medium">Transport Allowance</span>
+                  <span className="font-bold text-[#1E1035] font-mono">
+                    ${salary.transportAllowance.toLocaleString()}
                   </span>
                 </div>
-                <div className="flex justify-between pt-2 font-bold text-slate-900 text-sm">
-                  <span>Total Earnings</span>
-                  <span>
-                    $
-                    {(
-                      salaryStructure.baseMonthly +
-                      salaryStructure.hra +
-                      salaryStructure.specialAllowance +
-                      salaryStructure.performanceBonus
-                    ).toLocaleString()}
+              </div>
+
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E1035]/60 pt-3">
+                Deductions & Withholdings
+              </h4>
+              <div className="space-y-2 text-xs divide-y divide-[#E8E2F0]">
+                <div className="flex items-center justify-between py-2 text-rose-700">
+                  <span className="font-medium">Provident Fund (PF) Deduction</span>
+                  <span className="font-bold font-mono">
+                    -${salary.pfDeduction.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-2 text-rose-700">
+                  <span className="font-medium">Income Tax (TDS) Withholding</span>
+                  <span className="font-bold font-mono">
+                    -${salary.taxDeduction.toLocaleString()}
                   </span>
                 </div>
               </div>
             </div>
+          </Card>
+        </div>
 
-            {/* Deductions Column */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider pb-1 border-b border-slate-100">
-                2. Statutory Deductions
-              </h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-600">Provident Fund (Employee PF)</span>
-                  <span className="font-semibold text-rose-600">
-                    -${salaryStructure.providentFund.toLocaleString()}
-                  </span>
+        {/* Right 1 Col: Banking & Disbursement Details */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader
+              title="Disbursement Account"
+              subtitle="Direct deposit destination on file"
+              icon={<Building2 size={18} />}
+            />
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <span className="text-[#1E1035]/60 block mb-0.5">Bank Institution</span>
+                <p className="font-bold text-[#1E1035] text-sm">{salary.bankName}</p>
+              </div>
+
+              <div>
+                <span className="text-[#1E1035]/60 block mb-0.5">Account Number</span>
+                <p className="font-mono font-bold text-[#1E1035]">{salary.accountNumber}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[#1E1035]/60 block mb-0.5">Routing Code</span>
+                  <p className="font-mono font-semibold text-[#1E1035]">{salary.ifscCode}</p>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-600">Health / Medical Insurance</span>
-                  <span className="font-semibold text-rose-600">
-                    -${salaryStructure.healthInsurance.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-600">Professional Tax</span>
-                  <span className="font-semibold text-rose-600">
-                    -${salaryStructure.professionalTax.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-6 font-bold text-rose-700 text-sm">
-                  <span>Total Deductions</span>
-                  <span>
-                    -$
-                    {(
-                      salaryStructure.providentFund +
-                      salaryStructure.healthInsurance +
-                      salaryStructure.professionalTax
-                    ).toLocaleString()}
-                  </span>
+                <div>
+                  <span className="text-[#1E1035]/60 block mb-0.5">Tax PAN / ID</span>
+                  <p className="font-mono font-semibold text-[#1E1035]">{salary.panNumber}</p>
                 </div>
               </div>
+
+              <div className="p-3 bg-[#F7F4FA] border border-[#E8E2F0] rounded-lg">
+                <span className="text-[11px] text-[#1E1035]/70 block">
+                  To update direct deposit routing, submit a verified form to HR Administration.
+                </span>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </Card>
 
-      {/* 4. Payslip Archive History List */}
-      <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Monthly Payslip Archives
-            </h2>
-            <p className="text-xs text-slate-500">
-              Download and view authenticated PDF salary slips generated by Odoo Payroll
+          {/* Quick Pay Frequency Info */}
+          <Card className="bg-[#F7F4FA] border border-[#E8E2F0]">
+            <div className="flex items-center gap-2 mb-2 text-[#7B2CBF]">
+              <Calendar size={18} />
+              <h4 className="text-xs font-bold text-[#1E1035]">Payout Schedule</h4>
+            </div>
+            <p className="text-xs text-[#1E1035]/70 leading-relaxed">
+              Standard payout disbursement occurs on the final business day of each calendar month.
             </p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
-                <th className="py-3 px-4">Pay Period</th>
-                <th className="py-3 px-4">Gross Pay</th>
-                <th className="py-3 px-4">Deductions</th>
-                <th className="py-3 px-4">Net Paid</th>
-                <th className="py-3 px-4">Payment Date</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {payslips.map(ps => (
-                <tr key={ps.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-sky-600" />
-                    <span>{ps.month}</span>
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-slate-700">
-                    ${ps.grossPay.toLocaleString()}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-rose-600">
-                    -${ps.totalDeductions.toLocaleString()}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono font-bold text-emerald-700">
-                    ${ps.netPay.toLocaleString()}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-500">{ps.payDate}</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 capitalize">
-                      {ps.status}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPayslip(ps)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>View</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          </Card>
         </div>
       </div>
 
-      {/* 5. Interactive Payslip Viewer Modal */}
-      {selectedPayslip && (
-        <div
-          id="dayflow-payslip-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
-        >
-          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 sm:p-8 text-slate-900">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      {/* Pay Stubs History Table */}
+      <Card>
+        <CardHeader
+          title="Past Pay Slips & Statements"
+          subtitle="Downloadable salary statements for income verification"
+          icon={<FileText size={18} />}
+        />
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Pay Period</TableHead>
+              <TableHead>Gross Pay</TableHead>
+              <TableHead>Deductions</TableHead>
+              <TableHead>Net Disbursement</TableHead>
+              <TableHead>Payment Status</TableHead>
+              <TableHead>Disbursement Date</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pastSlips.map((record) => (
+              <TableRow key={record.id}>
+                <TableCell className="font-bold text-xs text-[#1E1035]">
+                  {record.monthYear}
+                </TableCell>
+                <TableCell className="text-xs font-mono font-medium">
+                  ${record.grossSalary.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-xs font-mono text-rose-700 font-medium">
+                  -${(record.pfDeduction + record.taxDeduction).toLocaleString()}
+                </TableCell>
+                <TableCell className="text-xs font-bold font-mono text-[#7B2CBF]">
+                  ${record.netSalary.toLocaleString()}
+                </TableCell>
+                <TableCell>
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      record.paymentStatus === 'Paid'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    {record.paymentStatus}
+                  </span>
+                </TableCell>
+                <TableCell className="text-xs text-[#1E1035]/70">
+                  {record.paymentDate}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedSlip(record)}
+                    leftIcon={<FileText size={14} />}
+                  >
+                    View Slip
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {/* Pay Slip Modal */}
+      {selectedSlip && (
+        <Modal
+          isOpen={Boolean(selectedSlip)}
+          onClose={() => setSelectedSlip(null)}
+          title={`Pay Slip – ${selectedSlip.monthYear}`}
+          subtitle={`Employee: ${employee.name} (${employee.employeeId})`}
+          maxWidth="lg"
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <span className="text-[11px] text-[#1E1035]/50">
+                Digitally generated by Dayflow HRMS
+              </span>
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-violet-50 text-violet-700">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Official Salary Slip — {selectedPayslip.month}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Dayflow HRMS Payroll Engine • Reference #{selectedPayslip.id}
-                  </p>
-                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => alert(`Printing pay slip for ${selectedSlip.monthYear}`)}
+                  leftIcon={<Printer size={14} />}
+                >
+                  Print
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => alert(`Downloading PDF statement for ${selectedSlip.monthYear}`)}
+                  leftIcon={<Download size={14} />}
+                >
+                  Download PDF
+                </Button>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPayslip(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+            </div>
+          }
+        >
+          <div className="p-6 space-y-6 bg-[#FFFFFF] border border-[#E8E2F0] rounded-xl">
+            <div className="flex items-center justify-between pb-4 border-b border-[#E8E2F0]">
+              <div>
+                <h3 className="text-lg font-extrabold text-[#1E1035]">DAYFLOW HRMS</h3>
+                <p className="text-xs text-[#1E1035]/60">Salary Slip for {selectedSlip.monthYear}</p>
+              </div>
+              <div className="text-right text-xs">
+                <p className="font-bold text-[#7B2CBF]">CONFIDENTIAL</p>
+                <p className="text-[#1E1035]/50">Status: {selectedSlip.paymentStatus}</p>
+              </div>
             </div>
 
-            {/* Payslip Document Body */}
-            <div className="mt-6 p-6 rounded-xl bg-slate-50/70 border border-slate-200 space-y-6 text-xs">
-              {/* Company & Employee Identity */}
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                <div>
-                  <h4 className="font-bold text-sm text-slate-900">DAYFLOW CORP</h4>
-                  <p className="text-slate-500">Every workday, perfectly aligned.</p>
-                  <p className="text-slate-500">Odoo Hackathon 2026 Edition</p>
-                </div>
-                <div className="text-right">
-                  <span className="font-semibold text-slate-900 block">{employee.name}</span>
-                  <span className="text-slate-500 font-mono block">ID: {employee.employeeId}</span>
-                  <span className="text-slate-500 block">{employee.jobPosition}</span>
-                </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-[#F7F4FA] p-3.5 rounded-lg border border-[#E8E2F0]">
+              <div>
+                <span className="text-[#1E1035]/50 block">Name:</span>
+                <span className="font-bold text-[#1E1035]">{employee.name}</span>
               </div>
+              <div>
+                <span className="text-[#1E1035]/50 block">Employee ID:</span>
+                <span className="font-bold text-[#1E1035]">{employee.employeeId}</span>
+              </div>
+              <div>
+                <span className="text-[#1E1035]/50 block">Department:</span>
+                <span className="font-bold text-[#1E1035]">{employee.department}</span>
+              </div>
+            </div>
 
-              {/* Earnings & Deductions Columns */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="font-bold text-slate-900 block mb-2">EARNINGS</span>
-                  <div className="space-y-1 text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Basic Pay:</span>
-                      <span className="font-mono text-slate-900">
-                        ${selectedPayslip.breakdown.basic.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>HRA:</span>
-                      <span className="font-mono text-slate-900">
-                        ${selectedPayslip.breakdown.hra.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Special Allowance:</span>
-                      <span className="font-mono text-slate-900">
-                        ${selectedPayslip.breakdown.specialAllowance.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Incentives:</span>
-                      <span className="font-mono text-slate-900">
-                        ${selectedPayslip.breakdown.bonus.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="border border-[#E8E2F0] rounded-lg overflow-hidden">
+                <div className="bg-[#F7F4FA] px-3 py-2 font-bold text-[#1E1035] border-b border-[#E8E2F0]">
+                  Earnings
                 </div>
-
-                <div>
-                  <span className="font-bold text-slate-900 block mb-2">DEDUCTIONS</span>
-                  <div className="space-y-1 text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Provident Fund:</span>
-                      <span className="font-mono text-rose-600">
-                        -${selectedPayslip.breakdown.providentFund.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tax (TDS):</span>
-                      <span className="font-mono text-rose-600">
-                        -${selectedPayslip.breakdown.taxDeducted.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Health Insurance:</span>
-                      <span className="font-mono text-rose-600">
-                        -${selectedPayslip.breakdown.healthInsurance.toLocaleString()}
-                      </span>
-                    </div>
+                <div className="p-3 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Base Salary</span>
+                    <span className="font-mono font-bold">${salary.baseSalary.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>HRA</span>
+                    <span className="font-mono font-bold">${salary.hra.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Special Allowance</span>
+                    <span className="font-mono font-bold">${salary.specialAllowance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-[#E8E2F0] font-bold text-emerald-800">
+                    <span>Gross Earnings</span>
+                    <span className="font-mono">${selectedSlip.grossSalary.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Total Take-Home */}
-              <div className="p-4 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                    Net Paid to Account
-                  </span>
-                  <span className="text-xl font-bold text-emerald-700">
-                    ${selectedPayslip.netPay.toLocaleString()}
-                  </span>
+              <div className="border border-[#E8E2F0] rounded-lg overflow-hidden">
+                <div className="bg-[#F7F4FA] px-3 py-2 font-bold text-[#1E1035] border-b border-[#E8E2F0]">
+                  Deductions
                 </div>
-                <div className="text-right text-[11px] text-slate-500">
-                  <span>Paid on: {selectedPayslip.payDate}</span>
-                  <span className="block text-emerald-600 font-semibold">
-                    ✓ Verified by Bank Transfer
-                  </span>
+                <div className="p-3 space-y-2">
+                  <div className="flex justify-between text-rose-700">
+                    <span>PF Contribution</span>
+                    <span className="font-mono font-bold">-${selectedSlip.pfDeduction.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700">
+                    <span>Income Tax</span>
+                    <span className="font-mono font-bold">-${selectedSlip.taxDeduction.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between pt-6 border-t border-[#E8E2F0] font-bold text-rose-800">
+                    <span>Total Deductions</span>
+                    <span className="font-mono">-${(selectedSlip.pfDeduction + selectedSlip.taxDeduction).toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setSelectedPayslip(null)}
-                className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl shadow-xs transition-all"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Print / Save PDF
-              </button>
+            <div className="p-4 rounded-xl bg-[#F7F4FA] border border-[#E8E2F0] flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-[#1E1035]/70 uppercase tracking-wider">
+                  Net Disbursement Amount
+                </span>
+                <p className="text-xs text-[#1E1035]/50">Transferred via ACH Direct Deposit</p>
+              </div>
+              <span className="text-2xl font-extrabold text-[#7B2CBF] font-mono">
+                ${selectedSlip.netSalary.toLocaleString()} USD
+              </span>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

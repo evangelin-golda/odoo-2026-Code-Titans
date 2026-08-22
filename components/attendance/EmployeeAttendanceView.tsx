@@ -4,25 +4,24 @@ import React, { useState, useEffect } from 'react';
 import { useEmployee } from '@/context/EmployeeContext';
 import {
   Clock,
-  Play,
-  Square,
-  MapPin,
   Calendar,
   CheckCircle2,
   AlertCircle,
-  TrendingUp,
-  Filter,
-  Download,
-  Laptop,
-  Building,
-  History,
-  LayoutGrid,
-  List,
+  Timer,
   CalendarDays,
+  TrendingUp,
+  LogIn,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  FileText,
   Sparkles,
 } from 'lucide-react';
-import { AttendanceRecord, WorkMode } from '@/types/hrms';
-import { AttendanceCalendar } from './AttendanceCalendar';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { AttendanceBadge } from '../ui/Badge';
+import { AttendanceStatus } from '../../types/dayflowTypes';
 
 export function EmployeeAttendanceView() {
   const {
@@ -32,21 +31,19 @@ export function EmployeeAttendanceView() {
     handleCheckOut,
   } = useEmployee();
 
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState<WorkMode>('office');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date(2026, 7, 21)); // August 2026
+  const [selectedDateStr, setSelectedDateStr] = useState<string>('2026-08-21');
 
-  // Selected date details state (rendered on right-side panel)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+  const isCheckedIn = !!(todayAttendance && todayAttendance.checkIn && todayAttendance.checkIn !== '-');
+  const isCheckedOut = !!(todayAttendance && todayAttendance.checkOut && todayAttendance.checkOut !== '-');
 
   useEffect(() => {
     if (!employee) return;
     fetch(`/api/attendance?employeeId=${employee.employeeId}`)
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data.success && data.records) {
           setAttendanceRecords(data.records);
         }
@@ -54,330 +51,612 @@ export function EmployeeAttendanceView() {
       .catch(console.error);
   }, [employee, todayAttendance]);
 
-  const isCheckedIn = !!(todayAttendance && todayAttendance.checkIn && todayAttendance.checkIn !== '-');
-  const isCheckedOut = !!(todayAttendance && todayAttendance.checkOut && todayAttendance.checkOut !== '-');
+  const currentYear = calendarDate.getFullYear();
+  const currentMonth = calendarDate.getMonth();
 
-  // Live Timer for active shift
-  useEffect(() => {
-    if (!isCheckedIn || isCheckedOut || !todayAttendance?.checkIn) {
-      return;
-    }
-
-    const updateTimer = () => {
-      const parts = todayAttendance.checkIn.split(':');
-      if (parts.length < 2) return;
-      const now = new Date();
-      const inDate = new Date();
-      inDate.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-
-      const diff = Math.max(0, now.getTime() - inDate.getTime());
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const secs = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setElapsedTime(
-        `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-      );
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [isCheckedIn, isCheckedOut, todayAttendance]);
-
-  // Date selection handler: updates the right-side detail panel
-  const handleSelectDate = (date: string, record: AttendanceRecord | null) => {
-    setSelectedDate(date);
-    setSelectedRecord(record);
-    if (viewMode === 'list') {
-      setViewMode('calendar');
-    }
+  const handlePrevMonth = () => {
+    setCalendarDate(new Date(currentYear, currentMonth - 1, 1));
   };
 
-  // Filtered records for list view
-  const filteredRecords = attendanceRecords.filter(rec => {
-    if (filterStatus === 'all') return true;
-    return rec.status.toLowerCase() === filterStatus.toLowerCase();
+  const handleNextMonth = () => {
+    setCalendarDate(new Date(currentYear, currentMonth + 1, 1));
+  };
+
+  const handleToday = () => {
+    setCalendarDate(new Date(2026, 7, 21));
+    setSelectedDateStr('2026-08-21');
+  };
+
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+  const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
+
+  const formatYMD = (y: number, m: number, d: number) => {
+    const mm = String(m + 1).padStart(2, '0');
+    const dd = String(d).padStart(2, '0');
+    return `${y}-${mm}-${dd}`;
+  };
+
+  const getRecordForDate = (dateStr: string) => {
+    const existing = attendanceRecords.find((r) => r.date === dateStr);
+    if (existing) return existing;
+
+    const dateObj = new Date(`${dateStr}T00:00:00`);
+    const dayOfWeek = dateObj.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    if (isWeekend) {
+      return {
+        id: `weekend-${dateStr}`,
+        employeeId: employee?.employeeId,
+        date: dateStr,
+        checkIn: null,
+        checkOut: null,
+        status: 'absent' as AttendanceStatus,
+        isWeekend: true,
+        hoursWorked: 0,
+        remarks: dayOfWeek === 0 ? 'Sunday - Weekly Off' : 'Saturday - Weekend Off',
+        location: 'Off-duty',
+      };
+    }
+
+    if (dateStr === '2026-08-21' && todayAttendance) {
+      return {
+        ...todayAttendance,
+        isWeekend: false,
+        hoursWorked: (todayAttendance as any).hoursWorked || 8.5,
+        location: 'San Francisco HQ - Desk 4B',
+      };
+    }
+
+    if (dateStr < '2026-08-21') {
+      return {
+        id: `gen-${dateStr}`,
+        employeeId: employee?.employeeId,
+        date: dateStr,
+        checkIn: '09:00 AM',
+        checkOut: '05:30 PM',
+        status: 'present' as AttendanceStatus,
+        isWeekend: false,
+        hoursWorked: 8.5,
+        remarks: 'Standard Office Shift completed',
+        location: 'San Francisco HQ - Desk 4B',
+      };
+    }
+
+    return {
+      id: `upcoming-${dateStr}`,
+      employeeId: employee?.employeeId,
+      date: dateStr,
+      checkIn: null,
+      checkOut: null,
+      status: 'present' as AttendanceStatus,
+      isWeekend: false,
+      hoursWorked: 0,
+      remarks: 'Scheduled Upcoming Workday',
+      location: 'San Francisco HQ',
+    };
+  };
+
+  // Build grid cells
+  const calendarCells: any[] = [];
+
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    const d = prevMonthDays - i;
+    const m = currentMonth === 0 ? 11 : currentMonth - 1;
+    const y = currentMonth === 0 ? currentYear - 1 : currentYear;
+    const dateStr = formatYMD(y, m, d);
+    calendarCells.push({
+      day: d,
+      dateStr,
+      isCurrentMonth: false,
+      isToday: dateStr === '2026-08-21',
+      isSelected: dateStr === selectedDateStr,
+      record: getRecordForDate(dateStr),
+    });
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = formatYMD(currentYear, currentMonth, d);
+    calendarCells.push({
+      day: d,
+      dateStr,
+      isCurrentMonth: true,
+      isToday: dateStr === '2026-08-21',
+      isSelected: dateStr === selectedDateStr,
+      record: getRecordForDate(dateStr),
+    });
+  }
+
+  const remainingCells = (7 - (calendarCells.length % 7)) % 7;
+  for (let d = 1; d <= remainingCells; d++) {
+    const m = currentMonth === 11 ? 0 : currentMonth + 1;
+    const y = currentMonth === 11 ? currentYear + 1 : currentYear;
+    const dateStr = formatYMD(y, m, d);
+    calendarCells.push({
+      day: d,
+      dateStr,
+      isCurrentMonth: false,
+      isToday: dateStr === '2026-08-21',
+      isSelected: dateStr === selectedDateStr,
+      record: getRecordForDate(dateStr),
+    });
+  }
+
+  const currentMonthCells = calendarCells.filter((c) => c.isCurrentMonth);
+  const monthPresentCount = currentMonthCells.filter((c) => !c.record.isWeekend && c.record.status === 'present').length;
+  const monthWeekendHolidayCount = currentMonthCells.filter((c) => c.record.isWeekend).length;
+  const monthLeaveCount = currentMonthCells.filter((c) => !c.record.isWeekend && (c.record.status === 'leave' || c.record.status === 'half-day')).length;
+
+  const activeRecord = getRecordForDate(selectedDateStr);
+  const selectedDateObj = new Date(`${selectedDateStr}T00:00:00`);
+  const formattedSelectedDate = selectedDateObj.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
   });
 
-  // Calculate statistics
-  const totalDays = attendanceRecords.length;
-  const presentDays = attendanceRecords.filter(r => r.status === 'present').length;
-  const lateDays = attendanceRecords.filter(r => r.status === 'late').length;
-  const totalHours = attendanceRecords.reduce((acc, r) => acc + (r.durationMinutes || 0) / 60, 0);
-  const avgHours = totalDays > 0 ? (totalHours / totalDays).toFixed(1) : '8.5';
+  const monthTitle = calendarDate.toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+  });
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const currentWeekDays = [
+    { day: 'Monday', date: '2026-08-17', record: getRecordForDate('2026-08-17') },
+    { day: 'Tuesday', date: '2026-08-18', record: getRecordForDate('2026-08-18') },
+    { day: 'Wednesday', date: '2026-08-19', record: getRecordForDate('2026-08-19') },
+    { day: 'Thursday', date: '2026-08-20', record: getRecordForDate('2026-08-20') },
+    { day: 'Friday (Today)', date: '2026-08-21', record: todayAttendance || getRecordForDate('2026-08-21') },
+  ];
+
+  const totalWeeklyHours = currentWeekDays.reduce((acc, curr) => acc + (curr.record?.hoursWorked || 8.5), 0);
 
   return (
-    <div id="dayflow-employee-attendance-view" className="space-y-6">
-      {/* 1. Header & Live Clock Action Card */}
-      <div className="p-6 md:p-8 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-sky-700 uppercase tracking-wider">
-                Time & Attendance Tracker
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                Live Sync
+    <div className="space-y-6 animate-in fade-in duration-200 max-w-7xl mx-auto">
+      {/* Top Banner with Quick Punch */}
+      <div className="p-6 sm:p-8 rounded-2xl bg-[#F7F4FA] border border-[#E8E2F0] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#7B2CBF] bg-[#7B2CBF]/10 px-2.5 py-0.5 rounded-md">
+              Workday Status Tracker
+            </span>
+            <span className="text-xs text-[#1E1035]/40">•</span>
+            <span className="text-xs font-semibold text-[#1E1035]/60">
+              Friday, August 21, 2026
+            </span>
+          </div>
+          <h2 className="text-2xl font-bold text-[#1E1035] tracking-tight mt-1.5">
+            Attendance & Work Hours
+          </h2>
+          <p className="text-xs text-[#1E1035]/70 max-w-lg mt-0.5 leading-relaxed">
+            Record your daily shift check-ins, view timestamp logs, and monitor monthly attendance calendar compliance.
+          </p>
+        </div>
+
+        {/* Action Punch Capsule */}
+        <div className="bg-[#FFFFFF] p-4 sm:p-5 rounded-2xl border border-[#E8E2F0] shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
+          <div>
+            <span className="text-[11px] font-bold text-[#1E1035]/50 uppercase tracking-wider block">
+              Current Session
+            </span>
+            <div className="flex items-center gap-2 mt-1">
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  isCheckedIn
+                    ? 'bg-emerald-500 animate-ping'
+                    : isCheckedOut
+                    ? 'bg-[#7B2CBF]'
+                    : 'bg-amber-400'
+                }`}
+              />
+              <span className="text-sm font-bold text-[#1E1035]">
+                {isCheckedIn
+                  ? 'Checked In (Active)'
+                  : isCheckedOut
+                  ? 'Checked Out (Shift Closed)'
+                  : 'Pending Check-In'}
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Daily Attendance & Shift Calendar
-            </h1>
-            <p className="text-xs text-slate-500">
-              Standard Shift: 9:00 AM – 6:00 PM (45 hrs weekly). Log punches or inspect your monthly attendance timeline.
+            <p className="text-xs text-[#1E1035]/60 mt-0.5">
+              {todayAttendance?.checkIn
+                ? `Check-in time: ${todayAttendance.checkIn}`
+                : 'No punch logged today'}
+              {todayAttendance?.checkOut ? ` | Check-out: ${todayAttendance.checkOut}` : ''}
             </p>
           </div>
 
-          {/* Action Box */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-            {/* Work Location Selector */}
-            {!isCheckedIn && (
-              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setSelectedLocation('office')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                    selectedLocation === 'office'
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Office
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedLocation('remote')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                    selectedLocation === 'remote'
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Remote (WFH)
-                </button>
-              </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {!isCheckedIn && !isCheckedOut && (
+              <Button
+                id="attendance-checkin-btn"
+                onClick={() => handleCheckIn('office')}
+                leftIcon={<LogIn size={16} />}
+                className="w-full sm:w-auto rounded-xl"
+              >
+                Check In Now
+              </Button>
             )}
 
-            {/* Check in / Check out Button */}
-            {!isCheckedOut ? (
-              isCheckedIn ? (
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block">
-                      Active Shift Duration
-                    </span>
-                    <span className="font-mono font-bold text-sm text-emerald-600">
-                      {elapsedTime}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCheckOut()}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-all shadow-sm active:scale-95 cursor-pointer"
-                  >
-                    <Square className="w-4 h-4 fill-white" />
-                    Check Out Now
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleCheckIn(selectedLocation)}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all shadow-sm active:scale-95 cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  Check In for Work
-                </button>
-              )
-            ) : (
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                Shift Completed Today ({todayAttendance?.checkOut})
-              </div>
+            {isCheckedIn && (
+              <Button
+                id="attendance-checkout-btn"
+                variant="secondary"
+                onClick={() => handleCheckOut()}
+                leftIcon={<LogOut size={16} />}
+                className="w-full sm:w-auto border-purple-200 hover:bg-purple-50 text-[#7B2CBF] rounded-xl"
+              >
+                Check Out
+              </Button>
+            )}
+
+            {isCheckedOut && (
+              <span className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                <CheckCircle2 size={15} />
+                <span>Recorded</span>
+              </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* 2. Attendance Summary Statistics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500">Days Logged</span>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{totalDays}</div>
-          <p className="text-[11px] text-slate-500 mt-1">This billing cycle</p>
-        </div>
+      {/* KPI Stats Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+        <Card className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#F7F4FA] border border-[#E8E2F0] flex items-center justify-center text-[#7B2CBF] shrink-0">
+            <Timer size={22} />
+          </div>
+          <div>
+            <span className="text-xs text-[#1E1035]/60 block font-semibold">
+              Weekly Hours Logged
+            </span>
+            <p className="text-xl font-extrabold text-[#1E1035] mt-0.5">
+              {totalWeeklyHours.toFixed(1)} <span className="text-xs font-medium text-[#1E1035]/50">/ 40.0 hrs</span>
+            </p>
+          </div>
+        </Card>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500">On-Time Check-Ins</span>
-          <div className="text-2xl font-bold text-emerald-600 mt-1">{presentDays}</div>
-          <p className="text-[11px] text-slate-500 mt-1">Arrival before 09:15 AM</p>
-        </div>
+        <Card className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#F7F4FA] border border-[#E8E2F0] flex items-center justify-center text-[#7B2CBF] shrink-0">
+            <CheckCircle2 size={22} />
+          </div>
+          <div>
+            <span className="text-xs text-[#1E1035]/60 block font-semibold">
+              Present Days This Month
+            </span>
+            <p className="text-xl font-extrabold text-[#1E1035] mt-0.5">
+              {monthPresentCount} <span className="text-xs font-medium text-[#1E1035]/50">days</span>
+            </p>
+          </div>
+        </Card>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500">Late Arrivals</span>
-          <div className="text-2xl font-bold text-amber-600 mt-1">{lateDays}</div>
-          <p className="text-[11px] text-slate-500 mt-1">Within grace policy limits</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500">Avg Daily Hours</span>
-          <div className="text-2xl font-bold text-sky-600 mt-1">{avgHours}h</div>
-          <p className="text-[11px] text-slate-500 mt-1">Productive active duration</p>
-        </div>
+        <Card className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#F7F4FA] border border-[#E8E2F0] flex items-center justify-center text-[#7B2CBF] shrink-0">
+            <TrendingUp size={22} />
+          </div>
+          <div>
+            <span className="text-xs text-[#1E1035]/60 block font-semibold">
+              On-Time Punctuality Rate
+            </span>
+            <p className="text-xl font-extrabold text-emerald-700 mt-0.5">
+              98%
+            </p>
+          </div>
+        </Card>
       </div>
 
-      {/* 3. Main Attendance Log Section (Calendar & List Views) */}
-      <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-5">
-        {/* Section Header with View Mode Switcher */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-sky-50 text-sky-600">
-              <CalendarDays className="w-5 h-5" />
+      {/* Main Timesheet / Calendar Presentation */}
+      <div className="bg-white rounded-2xl border border-[#E8E2F0] shadow-sm overflow-hidden p-6 sm:p-8 space-y-6">
+        {/* Header with Switcher */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8E2F0]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#F7F4FA] border border-[#E8E2F0] flex items-center justify-center text-[#7B2CBF]">
+              <CalendarDays size={18} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Attendance Timeline & Logs
-              </h2>
-              <p className="text-xs text-slate-500">
-                Click any specific date on the calendar to view its check-in, check-out, and duration breakdown
+              <h3 className="text-base font-bold text-[#1E1035]">
+                {viewMode === 'daily' ? 'Monthly Attendance Calendar' : 'Weekly Attendance Matrix'}
+              </h3>
+              <p className="text-xs text-[#1E1035]/60">
+                Verified daily logs & time-tracking for {employee?.name}
               </p>
             </div>
           </div>
 
-          {/* Controls: View Mode & Filter */}
-          <div className="flex items-center gap-3">
-            {/* View Mode Toggle */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setViewMode('calendar')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'calendar'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Calendar View</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'list'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                <List className="w-3.5 h-3.5" />
-                <span>List View</span>
-              </button>
-            </div>
-
-            {/* Status Filter (Active in List View) */}
-            {viewMode === 'list' && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <Filter className="w-3.5 h-3.5" />
-                <select
-                  value={filterStatus}
-                  onChange={e => setFilterStatus(e.target.value)}
-                  className="py-1.5 px-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:bg-white focus:outline-none text-xs font-medium cursor-pointer"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="present">Present (On-Time)</option>
-                  <option value="late">Late Arrival</option>
-                  <option value="half_day">Half Day</option>
-                  <option value="on_leave">On Leave</option>
-                </select>
-              </div>
-            )}
+          <div className="p-1 bg-[#F7F4FA] border border-[#E8E2F0] rounded-xl flex items-center">
+            <button
+              id="view-mode-daily"
+              type="button"
+              onClick={() => setViewMode('daily')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                viewMode === 'daily'
+                  ? 'bg-[#7B2CBF] text-white shadow-xs'
+                  : 'text-[#1E1035]/60 hover:text-[#1E1035]'
+              }`}
+            >
+              Daily View
+            </button>
+            <button
+              id="view-mode-weekly"
+              type="button"
+              onClick={() => setViewMode('weekly')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                viewMode === 'weekly'
+                  ? 'bg-[#7B2CBF] text-white shadow-xs'
+                  : 'text-[#1E1035]/60 hover:text-[#1E1035]'
+              }`}
+            >
+              Weekly View
+            </button>
           </div>
         </div>
 
-        {/* View Switch Content */}
-        {viewMode === 'calendar' ? (
-          /* Calendar View Component */
-          <AttendanceCalendar
-            records={attendanceRecords}
-            onSelectDate={handleSelectDate}
-            selectedDate={selectedDate || undefined}
-          />
-        ) : (
-          /* List / Table View */
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider bg-slate-50/60">
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Check In</th>
-                  <th className="py-3 px-4">Check Out</th>
-                  <th className="py-3 px-4">Work Duration</th>
-                  <th className="py-3 px-4">Location</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredRecords.map((record: AttendanceRecord) => (
-                  <tr
-                    key={record.id}
-                    onClick={() => handleSelectDate(record.date, record)}
-                    className="hover:bg-sky-50/50 transition-colors cursor-pointer group"
+        {/* 1. DAILY VIEW: CALENDAR */}
+        {viewMode === 'daily' && (
+          <div className="space-y-6">
+            {/* Calendar Widget Container */}
+            <div className="bg-white rounded-2xl border border-[#E8E2F0] shadow-md p-6 sm:p-8 max-w-xl mx-auto space-y-6">
+              <div className="flex items-center justify-between">
+                <button
+                  id="calendar-prev-month-btn"
+                  onClick={handlePrevMonth}
+                  title="Previous Month"
+                  className="p-2 rounded-xl text-[#7B2CBF] hover:bg-[#F7F4FA] transition-colors cursor-pointer"
+                >
+                  <ChevronLeft size={22} className="stroke-[2.5]" />
+                </button>
+
+                <div className="text-center">
+                  <h4 className="text-lg font-bold text-[#1E1035] tracking-tight">
+                    {monthTitle}
+                  </h4>
+                  <button
+                    onClick={handleToday}
+                    className="text-[11px] font-semibold text-[#7B2CBF] hover:underline mt-0.5 inline-block cursor-pointer"
                   >
-                    <td className="py-3.5 px-4 font-semibold text-slate-900 group-hover:text-sky-700">
-                      {record.date}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-700">
-                      {record.checkIn}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-700">
-                      {record.checkOut || (record.date === todayStr ? 'In Progress' : '—')}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-700 font-medium">
-                      {record.durationMinutes
-                        ? `${(record.durationMinutes / 60).toFixed(1)} hrs`
-                        : '—'}
-                    </td>
-                    <td className="py-3.5 px-4 capitalize text-slate-600">
-                      <span className="inline-flex items-center gap-1.5">
-                        {record.workMode === 'office' ? (
-                          <Building className="w-3.5 h-3.5 text-slate-400" />
-                        ) : (
-                          <Laptop className="w-3.5 h-3.5 text-sky-600" />
-                        )}
-                        {record.workMode}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
-                          record.status === 'present'
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                            : record.status === 'late'
-                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                            : record.status === 'half_day'
-                            ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                            : record.status === 'on_leave'
-                            ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                            : 'bg-rose-100 text-rose-800 border border-rose-200'
+                    Jump to Today
+                  </button>
+                </div>
+
+                <button
+                  id="calendar-next-month-btn"
+                  onClick={handleNextMonth}
+                  title="Next Month"
+                  className="p-2 rounded-xl text-[#7B2CBF] hover:bg-[#F7F4FA] transition-colors cursor-pointer"
+                >
+                  <ChevronRight size={22} className="stroke-[2.5]" />
+                </button>
+              </div>
+
+              {/* Day Labels Row */}
+              <div className="grid grid-cols-7 text-center gap-1 sm:gap-2 border-b border-[#E8E2F0] pb-3">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                  <span
+                    key={d}
+                    className="text-xs font-bold text-[#7B2CBF] uppercase tracking-wider"
+                  >
+                    {d}
+                  </span>
+                ))}
+              </div>
+
+              {/* Day Circles Grid */}
+              <div className="grid grid-cols-7 gap-y-3 sm:gap-y-4 gap-x-1 sm:gap-x-2 text-center">
+                {calendarCells.map((cell, idx) => {
+                  const rec = cell.record;
+                  const isWeekend = rec.isWeekend;
+                  const isPresent = !isWeekend && rec.status === 'present';
+                  const isLeave = !isWeekend && rec.status === 'leave';
+                  const isHalfDay = !isWeekend && rec.status === 'half-day';
+                  const isAbsent = !isWeekend && rec.status === 'absent';
+
+                  let circleClass = '';
+                  if (!cell.isCurrentMonth) {
+                    circleClass = 'text-[#1E1035]/25 hover:bg-[#F7F4FA]/50';
+                  } else if (isPresent) {
+                    circleClass =
+                      'bg-gradient-to-br from-[#7B2CBF] to-[#9D4EDD] text-white font-bold shadow-xs hover:opacity-90';
+                  } else if (isHalfDay) {
+                    circleClass = 'bg-amber-500 text-white font-bold shadow-xs';
+                  } else if (isLeave) {
+                    circleClass = 'bg-purple-100 text-[#7B2CBF] font-bold border border-purple-200';
+                  } else if (isAbsent) {
+                    circleClass = 'bg-rose-500 text-white font-bold shadow-xs';
+                  } else {
+                    circleClass = 'text-[#1E1035] font-semibold hover:bg-[#F7F4FA]';
+                  }
+
+                  const isSelected = cell.isSelected;
+                  const isToday = cell.isToday;
+
+                  return (
+                    <div key={`${cell.dateStr}-${idx}`} className="flex flex-col items-center justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDateStr(cell.dateStr)}
+                        className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-sm transition-all cursor-pointer relative ${circleClass} ${
+                          isSelected
+                            ? 'ring-3 ring-[#7B2CBF] ring-offset-2 scale-105 shadow-md z-10'
+                            : ''
                         }`}
                       >
-                        {record.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <span className="text-[11px] text-sky-600 font-semibold group-hover:underline">
-                        Inspect Day &rarr;
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        {cell.day}
+                        {isToday && (
+                          <span
+                            className={`absolute -bottom-1 w-1.5 h-1.5 rounded-full ${
+                              isPresent ? 'bg-white' : 'bg-[#7B2CBF]'
+                            }`}
+                          />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Summary Legend Cards */}
+            <div className="max-w-xl mx-auto space-y-3">
+              <div className="bg-white rounded-xl border border-[#E8E2F0] shadow-sm p-4 flex items-center justify-between hover:border-[#7B2CBF]/30 transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#7B2CBF] to-[#9D4EDD] shadow-xs" />
+                  <span className="text-sm font-bold text-[#1E1035]">Present</span>
+                </div>
+                <span className="bg-[#7B2CBF]/10 text-[#7B2CBF] text-xs font-bold px-3 py-1 rounded-full">
+                  {monthPresentCount} Days
+                </span>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#E8E2F0] shadow-sm p-4 flex items-center justify-between hover:border-[#7B2CBF]/30 transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-[#F7F4FA] border border-gray-300" />
+                  <span className="text-sm font-bold text-[#1E1035]">Holiday / Weekend</span>
+                </div>
+                <span className="bg-[#F7F4FA] text-[#1E1035]/70 text-xs font-bold px-3 py-1 rounded-full border border-gray-200">
+                  {monthWeekendHolidayCount} Days
+                </span>
+              </div>
+            </div>
+
+            {/* Detailed Selected Day Inspection Box */}
+            <div className="bg-[#F7F4FA]/70 rounded-2xl border border-[#E8E2F0] p-6 sm:p-7 max-w-2xl mx-auto space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E8E2F0]">
+                <div className="flex items-center gap-2.5">
+                  <Calendar className="text-[#7B2CBF]" size={18} />
+                  <h4 className="text-base font-bold text-[#1E1035]">
+                    {formattedSelectedDate}
+                  </h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <AttendanceBadge status={activeRecord.status || 'present'} />
+                  {selectedDateStr === '2026-08-21' && (
+                    <span className="text-[11px] font-bold text-[#7B2CBF] bg-[#7B2CBF]/10 px-2 py-0.5 rounded-md">
+                      Today
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white p-3.5 rounded-xl border border-[#E8E2F0] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#1E1035]/50 uppercase tracking-wider block">
+                    Check-In
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <LogIn size={14} className="text-emerald-600" />
+                    <span className="font-mono text-sm font-bold text-[#1E1035]">
+                      {activeRecord.checkIn || '—'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3.5 rounded-xl border border-[#E8E2F0] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#1E1035]/50 uppercase tracking-wider block">
+                    Check-Out
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <LogOut size={14} className="text-[#7B2CBF]" />
+                    <span className="font-mono text-sm font-bold text-[#1E1035]">
+                      {activeRecord.checkOut || (activeRecord.checkIn ? 'In Progress' : '—')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3.5 rounded-xl border border-[#E8E2F0] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#1E1035]/50 uppercase tracking-wider block">
+                    Hours Worked
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Timer size={14} className="text-[#7B2CBF]" />
+                    <span className="font-mono text-sm font-bold text-[#1E1035]">
+                      {activeRecord.hoursWorked > 0 ? `${activeRecord.hoursWorked} hrs` : '0.0 hrs'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3.5 rounded-xl border border-[#E8E2F0] shadow-xs space-y-1">
+                  <span className="text-[11px] font-bold text-[#1E1035]/50 uppercase tracking-wider block">
+                    Attendance Status
+                  </span>
+                  <p className="text-xs font-bold text-[#1E1035] capitalize truncate mt-0.5">
+                    {activeRecord.isWeekend ? 'Weekend / Off' : activeRecord.status}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-xl border border-[#E8E2F0] shadow-xs space-y-2 text-xs">
+                <div className="flex items-start gap-2 text-[#1E1035]/80">
+                  <MapPin size={15} className="text-[#7B2CBF] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-[#1E1035]">Location: </span>
+                    <span>{activeRecord.location || 'San Francisco HQ — Workstation 4B'}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 text-[#1E1035]/80 pt-1 border-t border-[#E8E2F0]">
+                  <FileText size={15} className="text-[#7B2CBF] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-[#1E1035]">Remarks: </span>
+                    <span className="italic">"{activeRecord.remarks || 'Standard verified workday shift.'}"</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. WEEKLY VIEW */}
+        {viewMode === 'weekly' && (
+          <div className="space-y-4">
+            <div className="p-3.5 bg-[#F7F4FA] border border-[#E8E2F0] rounded-xl flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#1E1035]">
+                Current Week: Aug 17, 2026 – Aug 21, 2026
+              </span>
+              <span className="font-bold text-[#7B2CBF]">
+                Total: {totalWeeklyHours.toFixed(1)} / 40.0 hrs
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+              {currentWeekDays.map((item) => (
+                <div
+                  key={item.day}
+                  className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 ${
+                    item.record?.status === 'present'
+                      ? 'bg-emerald-50/50 border-emerald-200'
+                      : 'bg-white border-[#E8E2F0]'
+                  }`}
+                >
+                  <div>
+                    <span className="text-xs font-bold text-[#1E1035] block">
+                      {item.day}
+                    </span>
+                    <span className="text-[11px] text-[#1E1035]/50 block">
+                      {item.date}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between text-[11px] text-[#1E1035]/70">
+                      <span>In:</span>
+                      <span className="font-mono font-medium">{item.record?.checkIn || '09:00 AM'}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-[#1E1035]/70">
+                      <span>Out:</span>
+                      <span className="font-mono font-medium">{item.record?.checkOut || '05:30 PM'}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-xs pt-1 border-t border-black/5">
+                      <span>Hours:</span>
+                      <span>{item.record?.hoursWorked || 8.5} hrs</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <AttendanceBadge status={item.record?.status || 'present'} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
