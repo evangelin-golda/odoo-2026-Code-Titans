@@ -20,6 +20,8 @@ import {
   Building2,
   Briefcase,
   Users,
+  Copy,
+  Check,
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -36,12 +38,14 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
 
   // OTP Step: 'email' vs 'code'
   const [otpStep, setOtpStep] = useState<'email' | 'code'>('email');
-  const [identifier, setIdentifier] = useState('alex.rivera@dayflow.internal');
+  const [identifier, setIdentifier] = useState('bharani.flow@gmail.com');
   const [otpCode, setOtpCode] = useState('');
-  const [detectedRole, setDetectedRole] = useState<'hr' | 'admin' | 'employee'>('employee');
-  const [detectedName, setDetectedName] = useState<string>('');
-  const [detectedEmployeeId, setDetectedEmployeeId] = useState<string>('');
-  const [demoCodeAvailable, setDemoCodeAvailable] = useState<string>('774102');
+  const [detectedRole, setDetectedRole] = useState<'hr' | 'admin' | 'employee'>('admin');
+  const [detectedName, setDetectedName] = useState<string>('Bharani Flow');
+  const [detectedEmployeeId, setDetectedEmployeeId] = useState<string>('EMP-1000');
+  const [generatedOtp, setGeneratedOtp] = useState<string>('774102');
+  const [emailDispatched, setEmailDispatched] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
 
   // Password Mode
   const [password, setPassword] = useState('');
@@ -54,6 +58,26 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
 
   const demoPersonas = [
     {
+      id: 'EMP-1000',
+      name: 'Bharani Flow',
+      roleType: 'admin' as const,
+      roleBadge: 'Super HR & Admin',
+      dept: 'HR & People Operations',
+      email: 'bharani.flow@gmail.com',
+      avatar:
+        'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'EMP-1002',
+      name: 'Sarah Chen',
+      roleType: 'hr' as const,
+      roleBadge: 'HR Partner',
+      dept: 'Product & Design',
+      email: 'sarah.chen@dayflow.internal',
+      avatar:
+        'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+    },
+    {
       id: 'EMP-1001',
       name: 'Alex Rivera',
       roleType: 'employee' as const,
@@ -63,26 +87,6 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
       avatar:
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     },
-    {
-      id: 'EMP-1002',
-      name: 'Sarah Chen',
-      roleType: 'hr' as const,
-      roleBadge: 'HR Admin',
-      dept: 'Product & Design',
-      email: 'sarah.chen@dayflow.internal',
-      avatar:
-        'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'EMP-1003',
-      name: 'Marcus Vance',
-      roleType: 'admin' as const,
-      roleBadge: 'System Admin',
-      dept: 'Infrastructure',
-      email: 'marcus.vance@dayflow.internal',
-      avatar:
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    },
   ];
 
   // 1. Send OTP via Resend
@@ -91,7 +95,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
     setError(null);
 
     if (!identifier.trim()) {
-      setError('Please enter your work email address.');
+      setError('Please enter your email address.');
       return;
     }
 
@@ -109,9 +113,12 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
       const data = await res.json();
       if (res.ok && data.success) {
         setDetectedRole(data.role || 'employee');
-        setDetectedName(data.employeeName || '');
-        setDetectedEmployeeId(data.employeeId || '');
-        setDemoCodeAvailable(data.demoCode || '774102');
+        setDetectedName(data.employeeName || identifier);
+        setDetectedEmployeeId(data.employeeId || 'EMP-USER');
+        const code = data.otpCode || data.demoCode || '774102';
+        setGeneratedOtp(code);
+        setOtpCode(code); // Pre-fill for instant convenience
+        setEmailDispatched(Boolean(data.emailDispatched));
         setOtpStep('code');
       } else {
         setError(data.error || 'Failed to dispatch verification code. Please check your email.');
@@ -178,7 +185,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
     setError(null);
 
     if (!identifier.trim()) {
-      setError('Please enter your work email address or Employee ID.');
+      setError('Please enter your email address or Employee ID.');
       return;
     }
 
@@ -203,20 +210,29 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
 
   const handleSelectPersona = (p: (typeof demoPersonas)[0]) => {
     setIdentifier(p.email);
+    setDetectedRole(p.roleType);
+    setDetectedName(p.name);
+    setDetectedEmployeeId(p.id);
     setError(null);
     setOtpStep('email');
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(generatedOtp);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="w-full space-y-6">
       {/* Persona Quick Select */}
-      <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
+      <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-4">
         <div className="flex items-center justify-between mb-2.5">
-          <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-sky-800">
-            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-            Select Persona (Auto Role Detection):
+          <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-purple-900">
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            Quick Select Persona (Auto Role Detection):
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-200/80 text-sky-900">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
             Resend Email OTP
           </span>
         </div>
@@ -234,8 +250,8 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                 className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all group cursor-pointer ${
                   isSelected
                     ? isHR
-                      ? 'bg-purple-50 border-purple-400 ring-1 ring-purple-400 shadow-xs'
-                      : 'bg-sky-50 border-sky-400 ring-1 ring-sky-400 shadow-xs'
+                      ? 'bg-purple-100/80 border-purple-400 ring-2 ring-purple-400 shadow-xs'
+                      : 'bg-sky-50 border-sky-400 ring-2 ring-sky-400 shadow-xs'
                     : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs'
                 }`}
               >
@@ -256,7 +272,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                     <span
                       className={`text-[9px] font-extrabold uppercase px-1 rounded ${
                         isHR
-                          ? 'bg-purple-100 text-purple-800'
+                          ? 'bg-purple-200 text-purple-900'
                           : 'bg-sky-100 text-sky-800'
                       }`}
                     >
@@ -320,7 +336,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
           <form onSubmit={handleSendOtp} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700">
-                Work Email Address <span className="text-rose-500">*</span>
+                Work Email Address (e.g. bharani.flow@gmail.com) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-purple-600 absolute left-3.5 top-3" />
@@ -332,8 +348,8 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                     setIdentifier(e.target.value);
                     if (error) setError(null);
                   }}
-                  placeholder="name@dayflow.internal"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  placeholder="bharani.flow@gmail.com"
+                  className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-medium"
                 />
               </div>
               <p className="text-[11px] text-slate-500">
@@ -349,7 +365,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Dispatching Resend OTP...</span>
+                  <span>Dispatching Resend OTP Code...</span>
                 </>
               ) : (
                 <>
@@ -374,18 +390,18 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                 {detectedRole === 'hr' || detectedRole === 'admin' ? (
                   <ShieldCheck className="w-5 h-5 text-purple-600 shrink-0" />
                 ) : (
-                  <UserCheck className="w-5 h-5 text-sky-600" />
+                  <UserCheck className="w-5 h-5 text-sky-600 shrink-0" />
                 )}
                 <div>
                   <div className="font-bold flex items-center gap-1.5">
                     <span>{detectedName}</span>
                     <span className="text-[10px] font-mono opacity-70">({detectedEmployeeId})</span>
                   </div>
-                  <div className="text-[11px] font-medium opacity-80">
-                    Detected Role: <strong className="uppercase">{detectedRole}</strong> ➜ Routing to{' '}
+                  <div className="text-[11px] font-medium opacity-80 mt-0.5">
+                    Role: <strong className="uppercase">{detectedRole}</strong> ➜ Will move to{' '}
                     <strong>
                       {detectedRole === 'hr' || detectedRole === 'admin'
-                        ? 'HR Command Center'
+                        ? 'HR Admin Portal'
                         : 'Employee Workspace'}
                     </strong>
                   </div>
@@ -401,6 +417,21 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
               </button>
             </div>
 
+            {/* Email Dispatch Info Pill */}
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] flex items-center justify-between gap-2 text-slate-600">
+              <span className="truncate">
+                Sent to: <strong className="font-mono text-slate-800">{identifier}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyCode}
+                className="flex items-center gap-1 text-[10px] font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-2 py-0.5 rounded-md shrink-0 cursor-pointer"
+              >
+                {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                <span>{copied ? 'Copied' : `Passcode: ${generatedOtp}`}</span>
+              </button>
+            </div>
+
             {/* 6-Digit Code input */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -410,10 +441,10 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                 </label>
                 <button
                   type="button"
-                  onClick={() => setOtpCode(demoCodeAvailable)}
+                  onClick={() => setOtpCode(generatedOtp)}
                   className="text-[10px] font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-2 py-0.5 rounded-md hover:bg-purple-100 transition-colors cursor-pointer"
                 >
-                  Autofill ({demoCodeAvailable})
+                  Autofill ({generatedOtp})
                 </button>
               </div>
 
@@ -425,9 +456,9 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                   setOtpCode(e.target.value);
                   if (error) setError(null);
                 }}
-                placeholder="774102"
+                placeholder={generatedOtp}
                 required
-                className="w-full text-center tracking-widest text-xl font-mono font-black py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
+                className="w-full text-center tracking-widest text-2xl font-mono font-black py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all shadow-inner"
               />
             </div>
 
@@ -444,7 +475,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Authenticating & Routing...</span>
+                  <span>Authenticating & Moving...</span>
                 </>
               ) : (
                 <>
@@ -479,7 +510,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                   setIdentifier(e.target.value);
                   if (error) setError(null);
                 }}
-                placeholder="alex.rivera@dayflow.internal or EMP-1001"
+                placeholder="bharani.flow@gmail.com or EMP-1000"
                 className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
               />
             </div>
@@ -547,7 +578,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
             ) : (
               <>
                 <UserCheck className="w-4 h-4 text-sky-400" />
-                <span>Sign In to Employee Portal</span>
+                <span>Sign In to Portal</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </>
             )}
@@ -559,7 +590,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
       {onSwitchToSignup && (
         <div className="text-center pt-2 border-t border-slate-100">
           <p className="text-xs text-slate-500">
-            Don&apos;t have an employee account yet?{' '}
+            Don&apos;t have an account yet?{' '}
             <button
               type="button"
               onClick={onSwitchToSignup}
