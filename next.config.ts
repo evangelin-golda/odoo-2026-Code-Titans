@@ -8,9 +8,21 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  // Allow access to remote image placeholder.
+  // Allow access to remote image placeholders and avatar services.
   images: {
     remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
       {
         protocol: 'https',
         hostname: 'picsum.photos',
@@ -19,7 +31,13 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com',
+        hostname: 'avatars.githubusercontent.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cdn.jsdelivr.net',
         port: '',
         pathname: '/**',
       },
