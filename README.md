@@ -1,1 +1,1 @@
-# odoo-2026-Code-Titans
+# ODOO-2026-Code-Titans
