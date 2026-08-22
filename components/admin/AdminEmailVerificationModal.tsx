@@ -182,40 +182,6 @@ export function AdminEmailVerificationModal({
               />
             </div>
 
-            {/* Quick Demo Pre-sets */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Quick Select Authorized Demo Accounts:
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEmail('sarah.chen@dayflow.internal')}
-                  className={`p-2 rounded-xl text-left border transition-all cursor-pointer text-xs ${
-                    email === 'sarah.chen@dayflow.internal'
-                      ? 'bg-purple-50 border-purple-300 text-purple-900 font-semibold'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="font-bold text-[11px] truncate">Sarah Chen</div>
-                  <div className="text-[10px] text-slate-500">HR Partner (Lead)</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setEmail('marcus.vance@dayflow.internal')}
-                  className={`p-2 rounded-xl text-left border transition-all cursor-pointer text-xs ${
-                    email === 'marcus.vance@dayflow.internal'
-                      ? 'bg-purple-50 border-purple-300 text-purple-900 font-semibold'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="font-bold text-[11px] truncate">Marcus Vance</div>
-                  <div className="text-[10px] text-slate-500">System Admin</div>
-                </button>
-              </div>
-            </div>
-
             {/* Submit Button */}
             <button
               type="submit"

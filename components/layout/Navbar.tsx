@@ -328,58 +328,6 @@ export function Navbar({
                     Register New Employee Profile
                   </button>
 
-                  {/* Demo Account Switcher */}
-                  <div className="mt-2 pt-2 border-t border-slate-100">
-                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Quick Demo Switcher
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchDemoUser('EMP-1001');
-                        setIsProfileMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between cursor-pointer ${
-                        employee?.employeeId === 'EMP-1001'
-                          ? 'bg-sky-50 text-sky-800 font-semibold border border-sky-200'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span>Alex Rivera (Eng)</span>
-                      {employee?.employeeId === 'EMP-1001' && <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchDemoUser('EMP-1002');
-                        setIsProfileMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between cursor-pointer ${
-                        employee?.employeeId === 'EMP-1002'
-                          ? 'bg-sky-50 text-sky-800 font-semibold border border-sky-200'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span>Sarah Chen (Design)</span>
-                      {employee?.employeeId === 'EMP-1002' && <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchDemoUser('EMP-1003');
-                        setIsProfileMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between cursor-pointer ${
-                        employee?.employeeId === 'EMP-1003'
-                          ? 'bg-sky-50 text-sky-800 font-semibold border border-sky-200'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span>Marcus Vance (DevOps)</span>
-                      {employee?.employeeId === 'EMP-1003' && <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />}
-                    </button>
-                  </div>
-
                   {/* Sign Out Action */}
                   <div className="mt-2 pt-2 border-t border-slate-100">
                     <button

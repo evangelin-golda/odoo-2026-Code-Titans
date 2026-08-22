@@ -11,26 +11,21 @@ import {
   Loader2,
   Shield,
   UserCheck,
-  Sparkles,
   AlertCircle,
   ShieldCheck,
   KeyRound,
   Send,
   CheckCircle2,
-  Building2,
-  Briefcase,
-  Users,
   Copy,
   Check,
 } from 'lucide-react';
-import Image from 'next/image';
 
 interface LoginFormProps {
   onSuccess?: () => void;
   onSwitchToSignup?: () => void;
 }
 
-export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
+export function LoginForm({ onSuccess, onSwitchToLogin, onSwitchToSignup }: LoginFormProps & { onSwitchToLogin?: () => void }) {
   const { login, switchDemoUser, setActiveView, isLoading } = useEmployee();
 
   // Login Mode: 'otp' (Resend Email Verification) vs 'password'
@@ -38,11 +33,11 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
 
   // OTP Step: 'email' vs 'code'
   const [otpStep, setOtpStep] = useState<'email' | 'code'>('email');
-  const [identifier, setIdentifier] = useState('bharani.flow@gmail.com');
+  const [identifier, setIdentifier] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [detectedRole, setDetectedRole] = useState<'hr' | 'admin' | 'employee'>('admin');
-  const [detectedName, setDetectedName] = useState<string>('Bharani Flow');
-  const [detectedEmployeeId, setDetectedEmployeeId] = useState<string>('EMP-1000');
+  const [detectedRole, setDetectedRole] = useState<'hr' | 'admin' | 'employee'>('employee');
+  const [detectedName, setDetectedName] = useState<string>('');
+  const [detectedEmployeeId, setDetectedEmployeeId] = useState<string>('');
   const [generatedOtp, setGeneratedOtp] = useState<string>('774102');
   const [emailDispatched, setEmailDispatched] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
@@ -56,46 +51,13 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const demoPersonas = [
-    {
-      id: 'EMP-1000',
-      name: 'Bharani Flow',
-      roleType: 'admin' as const,
-      roleBadge: 'Super HR & Admin',
-      dept: 'HR & People Operations',
-      email: 'bharani.flow@gmail.com',
-      avatar:
-        'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'EMP-1002',
-      name: 'Sarah Chen',
-      roleType: 'hr' as const,
-      roleBadge: 'HR Partner',
-      dept: 'Product & Design',
-      email: 'sarah.chen@dayflow.internal',
-      avatar:
-        'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'EMP-1001',
-      name: 'Alex Rivera',
-      roleType: 'employee' as const,
-      roleBadge: 'Employee',
-      dept: 'Core Engineering',
-      email: 'alex.rivera@dayflow.internal',
-      avatar:
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    },
-  ];
-
   // 1. Send OTP via Resend
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!identifier.trim()) {
-      setError('Please enter your email address.');
+      setError('Please enter your work email address.');
       return;
     }
 
@@ -117,7 +79,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
         setDetectedEmployeeId(data.employeeId || 'EMP-USER');
         const code = data.otpCode || data.demoCode || '774102';
         setGeneratedOtp(code);
-        setOtpCode(code); // Pre-fill for instant convenience
+        setOtpCode(code); // Pre-fill for convenience
         setEmailDispatched(Boolean(data.emailDispatched));
         setOtpStep('code');
       } else {
@@ -208,15 +170,6 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
     }
   };
 
-  const handleSelectPersona = (p: (typeof demoPersonas)[0]) => {
-    setIdentifier(p.email);
-    setDetectedRole(p.roleType);
-    setDetectedName(p.name);
-    setDetectedEmployeeId(p.id);
-    setError(null);
-    setOtpStep('email');
-  };
-
   const handleCopyCode = () => {
     navigator.clipboard.writeText(generatedOtp);
     setCopied(true);
@@ -224,84 +177,23 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
   };
 
   return (
-    <div className="w-full space-y-6">
-      {/* Persona Quick Select */}
-      <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-4">
-        <div className="flex items-center justify-between mb-2.5">
-          <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-purple-900">
-            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-            Quick Select Persona (Auto Role Detection):
-          </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
-            Resend Email OTP
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {demoPersonas.map(p => {
-            const isSelected = identifier.toLowerCase() === p.email.toLowerCase();
-            const isHR = p.roleType === 'hr' || p.roleType === 'admin';
-
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleSelectPersona(p)}
-                className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all group cursor-pointer ${
-                  isSelected
-                    ? isHR
-                      ? 'bg-purple-100/80 border-purple-400 ring-2 ring-purple-400 shadow-xs'
-                      : 'bg-sky-50 border-sky-400 ring-2 ring-sky-400 shadow-xs'
-                    : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs'
-                }`}
-              >
-                <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-slate-200 shrink-0">
-                  <Image
-                    src={p.avatar}
-                    alt={p.name}
-                    fill
-                    className="object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-bold text-slate-900 truncate">
-                    {p.name}
-                  </div>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span
-                      className={`text-[9px] font-extrabold uppercase px-1 rounded ${
-                        isHR
-                          ? 'bg-purple-200 text-purple-900'
-                          : 'bg-sky-100 text-sky-800'
-                      }`}
-                    >
-                      {p.roleBadge}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
+    <div className="w-full space-y-5">
       {/* Auth Method Tabs (Resend OTP vs Password) */}
-      <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+      <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl text-xs font-semibold">
         <button
           type="button"
           onClick={() => {
             setAuthMethod('otp');
             setError(null);
           }}
-          className={`py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             authMethod === 'otp'
               ? 'bg-white text-slate-900 shadow-2xs font-bold'
               : 'text-slate-500 hover:text-slate-900'
           }`}
         >
           <Mail className="w-3.5 h-3.5 text-purple-600" />
-          <span>Email OTP (Resend)</span>
+          <span>Email OTP Verification</span>
         </button>
 
         <button
@@ -310,7 +202,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
             setAuthMethod('password');
             setError(null);
           }}
-          className={`py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             authMethod === 'password'
               ? 'bg-white text-slate-900 shadow-2xs font-bold'
               : 'text-slate-500 hover:text-slate-900'
@@ -332,11 +224,11 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
       {/* METHOD 1: Resend Email OTP Verification */}
       {authMethod === 'otp' ? (
         otpStep === 'email' ? (
-          /* Step 1: Input Email & Request Resend Code */
+          /* Step 1: Input Email & Request Code */
           <form onSubmit={handleSendOtp} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700">
-                Work Email Address (e.g. bharani.flow@gmail.com) <span className="text-rose-500">*</span>
+                Work Email Address <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-purple-600 absolute left-3.5 top-3" />
@@ -348,12 +240,12 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                     setIdentifier(e.target.value);
                     if (error) setError(null);
                   }}
-                  placeholder="bharani.flow@gmail.com"
+                  placeholder="e.g. bharani.flow@gmail.com or name@dayflow.internal"
                   className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-medium"
                 />
               </div>
               <p className="text-[11px] text-slate-500">
-                Resend automatically checks whether you belong to the <strong>Employee Workspace</strong> or <strong>HR Admin Portal</strong>.
+                The system automatically routes you to the <strong>Employee Workspace</strong> or <strong>HR Admin Portal</strong> based on your account role.
               </p>
             </div>
 
@@ -365,12 +257,12 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Dispatching Resend OTP Code...</span>
+                  <span>Dispatching Email Verification...</span>
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  <span>Send Verification Code via Resend</span>
+                  <span>Send Verification Code</span>
                 </>
               )}
             </button>
@@ -390,7 +282,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                 {detectedRole === 'hr' || detectedRole === 'admin' ? (
                   <ShieldCheck className="w-5 h-5 text-purple-600 shrink-0" />
                 ) : (
-                  <UserCheck className="w-5 h-5 text-sky-600 shrink-0" />
+                  <UserCheck className="w-5 h-5 text-sky-600" />
                 )}
                 <div>
                   <div className="font-bold flex items-center gap-1.5">
@@ -398,7 +290,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                     <span className="text-[10px] font-mono opacity-70">({detectedEmployeeId})</span>
                   </div>
                   <div className="text-[11px] font-medium opacity-80 mt-0.5">
-                    Role: <strong className="uppercase">{detectedRole}</strong> ➜ Will move to{' '}
+                    Account: <strong className="uppercase">{detectedRole}</strong> ➜ Destination:{' '}
                     <strong>
                       {detectedRole === 'hr' || detectedRole === 'admin'
                         ? 'HR Admin Portal'
@@ -510,7 +402,7 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
                   setIdentifier(e.target.value);
                   if (error) setError(null);
                 }}
-                placeholder="bharani.flow@gmail.com or EMP-1000"
+                placeholder="e.g. bharani.flow@gmail.com"
                 className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
               />
             </div>
@@ -522,9 +414,6 @@ export function LoginForm({ onSuccess, onSwitchToSignup }: LoginFormProps) {
               <label className="block text-xs font-semibold text-slate-700">
                 Password <span className="text-rose-500">*</span>
               </label>
-              <span className="text-[11px] text-sky-600 font-medium cursor-pointer hover:underline">
-                Demo mode: any password
-              </span>
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
