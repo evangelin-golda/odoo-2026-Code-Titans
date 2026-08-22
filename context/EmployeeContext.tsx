@@ -26,6 +26,7 @@ interface EmployeeContextType {
   todayAttendance: AttendanceRecord | null;
   unreadCount: number;
   login: (credentials: { email?: string; employeeId?: string; identifier?: string; password?: string }) => Promise<{ success: boolean; error?: string }>;
+  loginWithOAuth: (data: { provider: 'google' | 'github'; email?: string; name?: string; avatarUrl?: string; rolePreference?: 'employee' | 'hr' }) => Promise<{ success: boolean; error?: string }>;
   register: (data: { name: string; email: string; phone?: string; department?: string; jobPosition?: string; workMode?: WorkMode; role?: import('@/types/hrms').UserRole; password?: string }) => Promise<{ success: boolean; error?: string }>;
   loginEmployee: (empId: string) => Promise<void>;
   switchDemoUser: (empId: string) => Promise<void>;
@@ -242,6 +243,59 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithOAuth = async (data: {
+    provider: 'google' | 'github';
+    email?: string;
+    name?: string;
+    avatarUrl?: string;
+    rolePreference?: 'employee' | 'hr';
+  }): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/oauth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const resData = await res.json();
+      if (resData.success && resData.employee) {
+        setEmployee(resData.employee);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dayflow_emp_id', resData.employee.employeeId);
+        }
+
+        const isHR = resData.isHR;
+        if (isHR) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('dayflow_admin_verified', 'true');
+            sessionStorage.setItem('dayflow_admin_email', resData.employee.email);
+          }
+          setActiveView('admin');
+        } else {
+          setActiveView('dashboard');
+        }
+
+        showToast(
+          `Signed in via ${data.provider === 'github' ? 'GitHub' : 'Google'} as ${resData.employee.name}`,
+          'success'
+        );
+        setOpenAuthModal(false);
+        return { success: true };
+      } else {
+        const errorMsg = resData.error || 'OAuth sign-in failed.';
+        showToast(errorMsg, 'error');
+        return { success: false, error: errorMsg };
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || 'OAuth network connection error.';
+      showToast(errorMsg, 'error');
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const loginEmployee = async (empId: string) => {
     await fetchEmployee(empId);
     showToast(`Logged in successfully as ${empId}`, 'success');
@@ -344,6 +398,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
         todayAttendance,
         unreadCount,
         login,
+        loginWithOAuth,
         register,
         loginEmployee,
         switchDemoUser,
