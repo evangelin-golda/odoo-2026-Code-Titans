@@ -1,8 +1,5 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { AlertCircle, RotateCcw, Home } from 'lucide-react';
-
 export default function GlobalError({
   error,
   reset,
@@ -10,48 +7,89 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    console.error('Global Application Error:', error);
-  }, [error]);
-
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center p-4 font-sans antialiased">
-        <div className="max-w-md w-full rounded-3xl bg-slate-900 border border-slate-800 p-8 shadow-2xl text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto shadow-inner">
-            <AlertCircle className="w-8 h-8" />
+      <head>
+        <title>Error - Dayflow HRMS</title>
+      </head>
+      <body style={{
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        backgroundColor: '#090d16',
+        color: '#f8fafc',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        margin: 0,
+        padding: '20px'
+      }}>
+        <div style={{
+          maxWidth: '440px',
+          width: '100%',
+          backgroundColor: '#0f172a',
+          border: '1px solid #1e293b',
+          borderRadius: '24px',
+          padding: '32px',
+          textAlign: 'center',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+        }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '16px',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#ef4444',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 20px',
+            fontSize: '24px'
+          }}>
+            ⚠️
           </div>
 
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold tracking-tight text-white">
-              Application Encountered an Error
-            </h1>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              {error?.message || 'An unexpected error occurred in the Dayflow HRMS application.'}
-            </p>
-          </div>
+          <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 8px', color: '#ffffff' }}>
+            Application Error
+          </h1>
+          <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 24px', lineHeight: '1.6' }}>
+            {error?.message || 'A system exception occurred in Dayflow HRMS.'}
+          </p>
 
-          <div className="flex items-center justify-center gap-3 pt-2">
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
             <button
               type="button"
               onClick={() => reset()}
-              className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-all shadow-sm cursor-pointer"
+              style={{
+                backgroundColor: '#7c3aed',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '12px',
+                padding: '10px 18px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
             >
-              <RotateCcw className="w-4 h-4" />
-              <span>Try Again</span>
+              Try Again
             </button>
-
             <button
               type="button"
               onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.location.href = '/';
-                }
+                if (typeof window !== 'undefined') window.location.href = '/';
               }}
-              className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all border border-slate-700 cursor-pointer"
+              style={{
+                backgroundColor: '#1e293b',
+                color: '#cbd5e1',
+                border: '1px solid #334155',
+                borderRadius: '12px',
+                padding: '10px 18px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
             >
-              <Home className="w-4 h-4" />
-              <span>Back to Home</span>
+              Back to Home
             </button>
           </div>
         </div>
